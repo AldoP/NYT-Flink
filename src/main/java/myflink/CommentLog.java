@@ -1,9 +1,8 @@
 package myflink;
 
-import java.text.ParseException;
 import java.util.Date;
 
-public class Log  implements Comparable{
+public class CommentLog implements Comparable{
 
     private Long approveDate;
     public String articleID;
@@ -21,11 +20,11 @@ public class Log  implements Comparable{
     private String userID;
     private String userLocation;
 
-    public Log() {
+    public CommentLog() {
 
     }
 
-    public Log(Long approveDate, String articleID, Integer articleWordCount, String commentID, String commentType, Long createDate, Integer depth, Boolean editorsSelection, String inReplyTo, String parentUserDisplayName, Integer recommendations, String sectionName, String userDisplayName, String userID, String userLocation) {
+    public CommentLog(Long approveDate, String articleID, Integer articleWordCount, String commentID, String commentType, Long createDate, Integer depth, Boolean editorsSelection, String inReplyTo, String parentUserDisplayName, Integer recommendations, String sectionName, String userDisplayName, String userID, String userLocation) {
         this.approveDate = approveDate;
         this.articleID = articleID;
         this.articleWordCount = articleWordCount;
@@ -43,7 +42,7 @@ public class Log  implements Comparable{
         this.userLocation = userLocation;
     }
 
-    public Log(String approveDate, String articleID, String articleWordCount, String commentID, String commentType, String createDate, String depth, String editorsSelection, String inReplyTo, String parentUserDisplayName, String recommendations, String sectionName, String userDisplayName, String userID, String userLocation) {
+    public CommentLog(String approveDate, String articleID, String articleWordCount, String commentID, String commentType, String createDate, String depth, String editorsSelection, String inReplyTo, String parentUserDisplayName, String recommendations, String sectionName, String userDisplayName, String userID, String userLocation) {
         try {
             this.approveDate = Long.parseLong(approveDate);
             this.articleID = articleID;
@@ -192,7 +191,7 @@ public class Log  implements Comparable{
     public String toString() {
         Date approveDateAsDate = new Date(approveDate);
         Date createDateAsDate = new Date(createDate);
-        return "Log{" +
+        return "CommentLog{" +
                 "approveDate=" + approveDateAsDate + " as long: "+approveDate+
                 ", create Data= " +createDateAsDate + " as long: "+createDate+
                 ", articleID='" + articleID + '\'' +
@@ -201,10 +200,54 @@ public class Log  implements Comparable{
     }
 
 
+    public static CommentLog fromString(String s) {
+        String otherThanQuote = " [^\"] ";
+        String quotedString = String.format(" \" %s* \" ", otherThanQuote);
+        String regex = String.format("(?x) "+ // enable comments, ignore white spaces
+                        ",                         "+ // match a comma
+                        "(?=                       "+ // start positive look ahead
+                        "  (?:                     "+ // start non-capturing group 1
+                        "    %s*                   "+ // match 'otherThanQuote' zero or more times
+                        "    %s                    "+ // match 'quotedString'
+                        "  )*                      "+ // end group 1 and repeat it zero or more times
+                        "  %s*                     "+ // match 'otherThanQuote'
+                        "  $                       "+ // match the end of the string
+                        ")                         ", // stop positive look ahead
+                otherThanQuote, quotedString, otherThanQuote);
+
+        String[] tokens = s.split(regex, -1);
+        CommentLog commentLog = new CommentLog();
+
+        try {
+        commentLog.approveDate = Long.parseLong(tokens[0])*1000;
+        commentLog.articleID = tokens[1];
+        commentLog.articleWordCount = Integer.parseInt(tokens[2]);
+        commentLog.commentID = tokens[3];
+        commentLog.commentType = tokens[4];
+        commentLog.createDate = Long.parseLong(tokens[5])*1000;
+        commentLog.depth = Integer.parseInt(tokens[6]);
+        commentLog.editorsSelection = Boolean.parseBoolean(tokens[7]);
+        commentLog.inReplyTo = tokens[8];
+        commentLog.parentUserDisplayName = tokens[9];
+        commentLog.recommendations = Integer.parseInt(tokens[10]);
+        commentLog.sectionName = tokens[11];
+        commentLog.userDisplayName = tokens[12];
+        commentLog.userID = tokens[13];
+        commentLog.userLocation = tokens[14];
+        } catch (Exception e) {
+            System.err.println(e);
+            System.err.println("Errore nel parsing");
+        }
+
+        return commentLog;
+    }
+
+
+
 
     @Override
     public int compareTo(Object my_log) {
-        Long compareLog = ((Log)my_log).getApproveDate();
+        Long compareLog = ((CommentLog)my_log).getApproveDate();
         /* For Ascending order*/
         int n = compareLog.intValue() - this.approveDate.intValue();
         return n;
