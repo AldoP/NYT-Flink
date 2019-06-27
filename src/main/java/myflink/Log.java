@@ -190,9 +190,11 @@ public class Log  implements Comparable{
 
     @Override
     public String toString() {
-        Date approveDateAsDate = new Date(approveDate*1000);
+        Date approveDateAsDate = new Date(approveDate);
+        Date createDateAsDate = new Date(createDate);
         return "Log{" +
-                "approveDate=" + approveDateAsDate +
+                "approveDate=" + approveDateAsDate + " as long: "+approveDate+
+                ", create Data= " +createDateAsDate + " as long: "+createDate+
                 ", articleID='" + articleID + '\'' +
                 ", userLocation='" + userLocation + '\'' +
                 '}';
