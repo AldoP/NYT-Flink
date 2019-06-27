@@ -2,6 +2,7 @@ package myflink;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -13,6 +14,7 @@ import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
+import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 import org.apache.flink.util.Collector;
 import java.util.*;
 
@@ -33,7 +35,13 @@ public class SocketWindowWordCount {
         //env.getConfig().setAutoWatermarkInterval(5000);
 
         // Get the input data by connecting the socket. Here it is connected to the local port 9000. If the port 9000 has been already occupied, change to another port.
-        DataStream<String> text = env.socketTextStream("localhost", 9000, "\n");
+        // DataStream<String> text = env.socketTextStream("localhost", 9000, "\n");
+
+        Properties properties = new Properties();
+        properties.setProperty("bootstrap.servers", "localhost:9092");
+        properties.setProperty("group.id", "test");
+        DataStream<String> text = env
+                .addSource(new FlinkKafkaConsumer<>("test", new SimpleStringSchema(), properties));
 
         // Parse the data, and group, windowing and aggregate it by word.
         DataStream<Tuple2<Log, Integer>> data = text
@@ -90,7 +98,7 @@ public class SocketWindowWordCount {
                 });
 
 
-        // printa la classifica con finestra tumbling
+        // stampa la classifica con finestra tumbling
         DataStream<Tuple2<Log, Integer>> resultWind = my_sum
                 .keyBy(0)
                 .timeWindow(Time.seconds(2))
