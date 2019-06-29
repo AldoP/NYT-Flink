@@ -17,19 +17,24 @@ import org.apache.flink.util.Collector;
 
 import java.util.*;
 
+
 /*
     TODO: controllare se regge il carico dello spara patate
           salvare in output
  */
 
-public class SocketWindowWordCount {
+public class Query1 {
     public static void main(String[] args) throws Exception {
 
-
         // Create the execution environment.
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        // set Event Time
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
+        env.setParallelism(8);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+
+        env.setStateBackend(new RocksDBStateBackend("file:///tmp"));
+
+
+
 
         // Get the input data
         Properties properties = new Properties();
