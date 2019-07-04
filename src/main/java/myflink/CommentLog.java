@@ -216,30 +216,37 @@ public class CommentLog implements Comparable{
                 otherThanQuote, quotedString, otherThanQuote);
 
         String[] tokens = s.split(regex, -1);
-        CommentLog commentLog = new CommentLog();
+
+        CommentLog commentLogResult = null;
 
         try {
-        commentLog.approveDate = Long.parseLong(tokens[0])*1000;
-        commentLog.articleID = tokens[1];
-        commentLog.articleWordCount = Integer.parseInt(tokens[2]);
-        commentLog.commentID = tokens[3];
-        commentLog.commentType = tokens[4];
-        commentLog.createDate = Long.parseLong(tokens[5])*1000;
-        commentLog.depth = Integer.parseInt(tokens[6]);
-        commentLog.editorsSelection = Boolean.parseBoolean(tokens[7]);
-        commentLog.inReplyTo = tokens[8];
-        commentLog.parentUserDisplayName = tokens[9];
-        commentLog.recommendations = Integer.parseInt(tokens[10]);
-        commentLog.sectionName = tokens[11];
-        commentLog.userDisplayName = tokens[12];
-        commentLog.userID = tokens[13];
-        commentLog.userLocation = tokens[14];
+            CommentLog commentLog = new CommentLog();
+
+            commentLog.approveDate = Long.parseLong(tokens[0])*1000;
+            commentLog.articleID = tokens[1];
+            commentLog.articleWordCount = Integer.parseInt(tokens[2]);
+            commentLog.commentID = tokens[3];
+            commentLog.commentType = tokens[4];
+            commentLog.createDate = Long.parseLong(tokens[5])*1000;
+            commentLog.depth = Integer.parseInt(tokens[6]);
+            commentLog.editorsSelection = Boolean.parseBoolean(tokens[7]);
+            commentLog.inReplyTo = tokens[8];
+            commentLog.parentUserDisplayName = tokens[9];
+            commentLog.recommendations = Integer.parseInt(tokens[10]);
+            commentLog.sectionName = tokens[11];
+            commentLog.userDisplayName = tokens[12];
+            commentLog.userID = tokens[13];
+            commentLog.userLocation = tokens[14];
+
+            commentLogResult = commentLog;
+
         } catch (Exception e) {
             System.err.println(e);
-            System.err.println("Errore nel parsing");
+            System.err.println("Errore nel parsing di :"+ s);
+
         }
 
-        return commentLog;
+        return commentLogResult;
     }
 
 

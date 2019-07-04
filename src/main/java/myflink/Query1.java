@@ -30,10 +30,8 @@ public class Query1 {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
         env.setParallelism(8);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-
-        env.setStateBackend(new RocksDBStateBackend("file:///tmp"));
-
-
+        RocksDBStateBackend my_rocksDB = new RocksDBStateBackend("file:///tmp");
+        env.setStateBackend(my_rocksDB);
 
 
         // Get the input data
