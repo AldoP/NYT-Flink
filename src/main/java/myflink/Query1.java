@@ -5,6 +5,7 @@ import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
+import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -33,6 +34,7 @@ public class Query1 {
         RocksDBStateBackend my_rocksDB = new RocksDBStateBackend("file:///tmp");
         env.setStateBackend(my_rocksDB);
 
+        final int WINDOW_SIZE = 24*7; //in numero di ore
 
         // Get the input data
         Properties properties = new Properties();
@@ -53,14 +55,14 @@ public class Query1 {
                 });
 
         // calcola quanto un articolo e' popolare con finestra sliding
-        DataStream<Tuple3<String, CommentLog, Integer>> classifica = timestampedAndWatermarked
+        DataStream<String> classifica = timestampedAndWatermarked
                 .keyBy(value -> value.f0.articleID)
-                .timeWindow(Time.minutes(120))
+                .timeWindow(Time.hours(WINDOW_SIZE))
                 .sum(1)
-                .timeWindowAll(Time.minutes(120))
-                .process(new ProcessAllWindowFunction<Tuple2<CommentLog, Integer>, Tuple3<String, CommentLog, Integer>, TimeWindow>() {
+                .timeWindowAll(Time.hours(WINDOW_SIZE))
+                .process(new ProcessAllWindowFunction<Tuple2<CommentLog, Integer>, String, TimeWindow>() {
                     @Override
-                    public void process(Context context, Iterable<Tuple2<CommentLog, Integer>> iterable, Collector<Tuple3<String, CommentLog, Integer>> collector) throws Exception {
+                    public void process(Context context, Iterable<Tuple2<CommentLog, Integer>> iterable, Collector<String> collector) throws Exception {
                         List<Tuple2<Integer, CommentLog>> tuple2s = new ArrayList<Tuple2<Integer, CommentLog>>();
 
                         for (Tuple2<CommentLog, Integer> my_tuple : iterable) {
@@ -74,28 +76,27 @@ public class Query1 {
                                 return v2 - v1;
                             }
                         });
-
-                        System.out.println("--------------------");
+                        String res = " ";
+                        res += "--------------------";
                         Date date_start = new Date(context.window().getStart());
-                        Date date_end = new Date(context.window().getEnd());
-                        System.out.println("size: " + tuple2s.size());
+                        // Date date_end = new Date(context.window().getEnd());
                         System.out.println("Time Window Start " + date_start.toString());
-                        System.out.println("Time Window End: " + date_end.toString());
-                        if (tuple2s.size() > 0) {
-                            System.out.println("\n First: " + tuple2s.get(0));
-                        }
-                        if (tuple2s.size() > 1) {
-                            System.out.println("\n Second: " + tuple2s.get(1));
-                        }
-                        if (tuple2s.size() > 2) {
-                            System.out.println("\n Third: " + tuple2s.get(2));
+                        res += "\nts: "+context.window().getStart();
+                        int size = tuple2s.size();
+                        for (int i = 0; i < 3 && i < size; i++) {
+                            res += "\n artID_" + (i + 1) + "  : " + tuple2s.get(i).f1.getArticleID();
+                            res += "\n nCmnt_" + (i + 1) + "  : " + tuple2s.get(i).f0;
                         }
 
-                        System.out.println("-------------------");
+                        res += "\n-------------------";
+                        System.out.println(res);
+                        collector.collect(res);
+
                     }
                 });
 
-        classifica.print().setParallelism(1);
+        classifica.writeAsText(Constants.QUERY1_PATHOUT+"_"+WINDOW_SIZE, FileSystem.WriteMode.OVERWRITE)
+                .setParallelism(1);
 
         env.execute("Socket Window WordCount");
 

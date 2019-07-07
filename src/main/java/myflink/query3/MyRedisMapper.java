@@ -1,4 +1,4 @@
-package myflink;
+package myflink.query3;
 
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.connectors.redis.common.mapper.RedisCommand;

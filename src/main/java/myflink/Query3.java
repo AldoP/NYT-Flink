@@ -1,8 +1,10 @@
 package myflink;
 
+import myflink.query3.Level2RedisMapper;
+import myflink.query3.Level3RedisMapper;
+import myflink.query3.MyRedisMapper;
 import myflink.utils.CommentLogSchema;
-import org.apache.flink.api.common.functions.FlatMapFunction;
-import org.apache.flink.api.common.functions.MapFunction;
+import myflink.utils.JedisPoolHolder;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.fs.FileSystem;
@@ -17,21 +19,11 @@ import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 import org.apache.flink.streaming.connectors.redis.RedisSink;
 import org.apache.flink.streaming.connectors.redis.common.config.FlinkJedisPoolConfig;
 import org.apache.flink.util.Collector;
-import redis.clients.jedis.Jedis;
 
 import java.util.*;
 
 /*
-        TODO: usare correttamente jedis, attualmente l'app dopo aver processato i dati del primo giorno fallisce
-              con il seguente errore
-    Exception in thread "main" org.apache.flink.runtime.client.JobExecutionException: redis.clients.jedis.exceptions.JedisConnectionException: java.net.SocketException: Connection reset
-	at org.apache.flink.runtime.minicluster.MiniCluster.executeJobBlocking(MiniCluster.java:623)
-	at org.apache.flink.streaming.api.environment.LocalStreamEnvironment.execute(LocalStreamEnvironment.java:123)
-	at myflink.Query3.main(Query3.java:266)
-Caused by: redis.clients.jedis.exceptions.JedisConnectionException: java.net.SocketException: Connection reset
-	at redis.clients.util.RedisInputStream.ensureFill(RedisInputStream.java:201)
-
-
+        TODO: sparapatate troppo lento
 
  */
 public class Query3 {
@@ -47,7 +39,10 @@ public class Query3 {
         // RocksDBStateBackend my_rocksDB = new RocksDBStateBackend("file:///tmp");
         // env.setStateBackend(my_rocksDB);
 
-        FlinkJedisPoolConfig conf = new FlinkJedisPoolConfig.Builder().setHost("localhost").build();
+        JedisPoolHolder.init("localhost", 6379);
+
+        FlinkJedisPoolConfig conf = new FlinkJedisPoolConfig.Builder()
+                .setHost("localhost").build(); //aggiungere altri set
 
 
         // Get the input data
@@ -66,56 +61,6 @@ public class Query3 {
                     }
                 });
 
-
-        /*
-        // Get the input data by connecting the socket. Here it is connected to the local port 9000. If the port 9000 has been already occupied, change to another port.
-        DataStream<String> text = env.socketTextStream("localhost", 9000, "\n");
-
-
-        // Parse the data, and group, windowing and aggregate it by word.
-        DataStream<CommentLog> timestampedAndWatermarked = text
-                .flatMap(new FlatMapFunction<String, CommentLog>() {
-                    @Override
-                    public void flatMap(String value, Collector<CommentLog> out) {
-                        try{
-                            String[] values = value.split("\\s*,\\s*");
-                            //generate obj
-                            Long my_approveDate = Long.parseLong(values[0]) * 1000;
-                            String my_articleID = values[1];
-                            Integer my_articleWordCount = Integer.parseInt(values[2]);
-                            String my_commentID = values[3];
-                            String my_commentType = values[4];
-                            Long my_createDate = Long.parseLong(values[5]) * 1000;
-                            Integer my_depth = Integer.parseInt(values[6]);
-                            Boolean my_editorsSelection = Boolean.parseBoolean(values[7]);
-                            String my_inReplyTo = values[8];
-                            String my_parentUserDisplayName = values[9];
-                            Integer my_recommendations = Integer.parseInt(values[10]);
-                            String my_sectionName = values[11];
-                            String my_userDisplayName = values[12];
-                            String my_userID = values[13];
-                            String my_userLocation = values[14];
-
-                            CommentLog myLog = new CommentLog(my_approveDate, my_articleID, my_articleWordCount, my_commentID,
-                                    my_commentType, my_createDate, my_depth, my_editorsSelection, my_inReplyTo,
-                                    my_parentUserDisplayName, my_recommendations, my_sectionName, my_userDisplayName,
-                                    my_userID, my_userLocation);
-                            out.collect(myLog);
-                        }
-                        catch (Exception e){
-                            System.err.println("* Elemento cancellato *");
-                        }
-
-                    }
-                })
-                .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentLog>(Time.seconds(1)) {
-                    @Override
-                    public long extractTimestamp(CommentLog logIntegerTuple2) {
-                        return logIntegerTuple2.getCreateDate();
-                    }
-                });
-
-        */
         /*
             ********* Numero di Like **********
          */
@@ -129,15 +74,7 @@ public class Query3 {
                 .timeWindow(Time.hours(WINDOW_SIZE))
                 .sum(1);
 
-                /*
-                .map(myData -> new Tuple2<String, Double>(
 
-                        myData.f0,
-                        (myData.f1*0.3))
-                ).returns(Types.TUPLE(Types.STRING, Types.DOUBLE)); // sommo le a-i per ottenere la A di ogni utente
-                 */
-
-        // a.print().setParallelism(1);
 
         /*
 
@@ -158,29 +95,7 @@ public class Query3 {
         // Livello 2
         timestampedAndWatermarked
                 .filter(log -> log.getDepth() == 2)
-                .map(new MapFunction<CommentLog, Tuple2<String, String>>() {
-                    @Override
-                    public Tuple2<String, String> map(CommentLog commentLog) throws Exception {
-
-                        Jedis jedis = new Jedis();
-
-                        String commentID = commentLog.getCommentID();
-                        String userID = commentLog.getUserID();
-                        String inReplyTo = commentLog.getInReplyTo();
-
-                        String userIDPadre = jedis.get(inReplyTo);
-
-                        Tuple2<String, String> result = new Tuple2<String, String>(
-                                commentID, userID);
-
-                        if(userIDPadre != null)
-                            result =  new Tuple2<>(commentID, (userID+";"+userIDPadre));
-
-                        return result;
-
-                    }
-
-                })
+                .map(new Level2RedisMapper())
                 .addSink(new RedisSink<Tuple2<String, String>>(conf, new MyRedisMapper()));
 
 
@@ -189,34 +104,7 @@ public class Query3 {
 
         DataStream<Tuple2<String, Double>> rankComment = timestampedAndWatermarked
                 .filter(log -> log.getDepth() != 1)
-                .flatMap(new FlatMapFunction<CommentLog, Tuple2<String, Double>>() {
-                    @Override
-                    public void flatMap(CommentLog commentLog, Collector<Tuple2<String, Double>> collector) throws Exception {
-
-                        String commentIDPadre = commentLog.getInReplyTo();
-                        // System.out.println("_"+commentIDPadre);
-                        Jedis jedis = new Jedis();
-                        String userIDPadre = jedis.get(commentIDPadre);
-                        // System.out.println("_r: "+userIDPadre);
-
-                        if (userIDPadre != null) {
-                            // Join con il padre
-                            if (!userIDPadre.contains(";")) {
-                                collector.collect(new Tuple2<String, Double>(userIDPadre, 0.7));
-                            }
-                            // Join con il nonno
-                            else {
-
-                                String userIDNonno = userIDPadre.split(";")[1];
-                                String userIDPadre2 = userIDPadre.split(";")[0];
-                                collector.collect(new Tuple2<String, Double>(userIDPadre2, 0.7));
-                                collector.collect(new Tuple2<String, Double>(userIDNonno, 0.7));
-
-                            }
-                        }
-
-                    }
-                })
+                .flatMap(new Level3RedisMapper())
                 .keyBy(0)
                 .sum(1);
 
@@ -285,4 +173,20 @@ public class Query3 {
         return  num * w * 0.3;
 
     }
+/*
+    private static JedisPoolConfig buildPoolConfig() {
+        final JedisPoolConfig poolConfig = new JedisPoolConfig();
+        poolConfig.setMaxTotal(128);
+        poolConfig.setMaxIdle(128);
+        poolConfig.setMinIdle(16);
+        poolConfig.setTestOnBorrow(true);
+        poolConfig.setTestOnReturn(true);
+        poolConfig.setTestWhileIdle(true);
+        poolConfig.setMinEvictableIdleTimeMillis(Duration.ofSeconds(60).toMillis());
+        poolConfig.setTimeBetweenEvictionRunsMillis(Duration.ofSeconds(30).toMillis());
+        poolConfig.setNumTestsPerEvictionRun(3);
+        poolConfig.setBlockWhenExhausted(true);
+        return poolConfig;
+    }
+*/
 }
