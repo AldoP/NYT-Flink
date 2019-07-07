@@ -44,6 +44,9 @@ public  class Level3RedisMapper implements FlatMapFunction<CommentLog, Tuple2<St
                 }
             }
         }
+        catch (Exception e){
+            System.err.println("Errore mapper livello 3, "+e.toString());
+        }
 
 
     }
