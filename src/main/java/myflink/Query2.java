@@ -4,14 +4,12 @@ import myflink.entity.CommentLog;
 import myflink.utils.CommentLogSchema;
 import org.apache.flink.api.common.functions.AggregateFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.timestamps.AscendingTimestampExtractor;
 import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
@@ -23,7 +21,9 @@ import java.util.*;
 
 public class Query2 {
 
-    private final static int WINDOW_SIZE = 24 * 7;
+    private final static int WINDOW_SIZE = 1;
+    //private final static int WINDOW_SIZE = 7;
+    //private final static int WINDOW_SIZE = 30;
     private final static String PATHOUT = "_query2.out";
 
     public static void main(String[] args) throws Exception{
@@ -39,23 +39,6 @@ public class Query2 {
         properties.setProperty("group.id", "test");
         DataStream<CommentLog> stream = env
                 .addSource(new FlinkKafkaConsumer<>("test", new CommentLogSchema(), properties));
-        /*
-                .assignTimestampsAndWatermarks(new AscendingTimestampExtractor<CommentLog>() {
-            @Override
-            public long extractAscendingTimestamp(CommentLog element) {
-                long timestamp = element.getCreateDate() / 1000;
-                LocalDateTime curr = LocalDateTime.ofEpochSecond(timestamp, 0, ZoneOffset.UTC);
-                System.out.println(timestamp);
-                System.out.println(curr.toString());
-                int roundedHour = curr.getHour() / 2 * 2;
-                System.out.println(roundedHour);
-                LocalDateTime rounded = LocalDateTime.of(
-                        curr.getYear(), curr.getMonth(), curr.getDayOfMonth(), roundedHour, 0);
-                System.out.println(rounded.toString());
-                return rounded.toEpochSecond(ZoneOffset.UTC) * 1000;
-            }
-        });
-        */
 
         DataStream<CommentLog> timestampedAndWatermarked = stream
                 .filter(CommentLog::isDirect)
@@ -67,20 +50,17 @@ public class Query2 {
                 });
 
         DataStream<Tuple2<Integer, Long>> hourlySum = timestampedAndWatermarked
-        //DataStream<Tuple3<String, String, Long>> hourlySum = timestampedAndWatermarked
-        //DataStream<Tuple3<String, String, Long>> hourlySum = stream
                 .keyBy(value -> value.articleID)
                 .timeWindow(Time.minutes(120))
-                //.aggregate(new SumAggregator(), new InfoProcessWindowFunction());
                 .aggregate(new SumAggregator())
                 .timeWindowAll(Time.minutes(120))
                 .process(new InfoProcessAllWindowFunction());
 
         DataStream<String> totalSum = hourlySum
                 .keyBy(0)
-                .timeWindow(Time.hours(Query2.WINDOW_SIZE))
+                .timeWindow(Time.days(Query2.WINDOW_SIZE))
                 .reduce((v1, v2) -> new Tuple2<>(v1.f0, v1.f1 + v2.f1))
-                .timeWindowAll(Time.hours(Query2.WINDOW_SIZE))
+                .timeWindowAll(Time.days(Query2.WINDOW_SIZE))
                 .process(new TotalSumProcessAllWindowFunction());
 
         hourlySum.print();
@@ -89,9 +69,7 @@ public class Query2 {
                 .setParallelism(1);
 
         env.execute();
-
     }
-
 
 
     private static class SumAggregator implements AggregateFunction<CommentLog, Long, Long> {
@@ -117,27 +95,6 @@ public class Query2 {
     }
 
 
-
-    private static class InfoProcessWindowFunction
-            extends ProcessWindowFunction<Long, Tuple3<String, String, Long>, String, TimeWindow> {
-
-        @Override
-        public void process(String key,
-                            Context context,
-                            Iterable<Long> counts,
-                            Collector<Tuple3<String, String, Long>> out) {
-            Long count = counts.iterator().next();
-            LocalDateTime startDate = LocalDateTime.ofEpochSecond(
-                    context.window().getStart() / 1000, 0, ZoneOffset.UTC);
-            LocalDateTime endDate = LocalDateTime.ofEpochSecond(
-                    context.window().getEnd() / 1000, 0, ZoneOffset.UTC);
-            String windowRange = startDate.toString() + " " + endDate.toString();
-            out.collect(new Tuple3<>(windowRange, key, count));
-        }
-    }
-
-
-
     private static class InfoProcessAllWindowFunction
             extends ProcessAllWindowFunction<Long, Tuple2<Integer, Long>, TimeWindow> {
 
@@ -148,14 +105,9 @@ public class Query2 {
                 count += partialCount;
             LocalDateTime startDate = LocalDateTime.ofEpochSecond(
                     context.window().getStart() / 1000, 0, ZoneOffset.UTC);
-            //LocalDateTime endDate = LocalDateTime.ofEpochSecond(
-            //        context.window().getEnd() / 1000, 0, ZoneOffset.UTC);
-            //String windowRange = startDate.toString() + " " + endDate.toString();
-            //out.collect(new Tuple2<>(windowRange, count));
             out.collect(new Tuple2<>(startDate.getHour(), count));
         }
     }
-
 
 
     private static class TotalSumProcessAllWindowFunction
@@ -172,8 +124,17 @@ public class Query2 {
             for (Tuple2<Integer, Long> t : iterable)
                 sortedList.add(t);
             sortedList.sort(Comparator.comparingInt(a -> a.f0));
-            for (Tuple2<Integer, Long> hourlySum : sortedList)
+            int hour = 0;
+            for (Tuple2<Integer, Long> hourlySum : sortedList) {
+                while (!hourlySum.f0.equals(hour)) {
+                    result.append(hour).append(":").append("0 ");
+                    hour += 2;
+                }
                 result.append(hourlySum.f0.toString()).append(":").append(hourlySum.f1.toString()).append(" ");
+                hour += 2;
+            }
+            for (; hour != 24; hour += 2)
+                result.append(hour).append(":").append("0 ");
             collector.collect(result.toString());
         }
     }
