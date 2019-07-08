@@ -1,5 +1,6 @@
 package myflink;
 
+import myflink.entity.CommentLog;
 import myflink.query3.Level2RedisMapper;
 import myflink.query3.Level3RedisMapper;
 import myflink.query3.MyRedisMapper;

@@ -1,4 +1,4 @@
-package myflink;
+package myflink.entity;
 
 import java.util.Date;
 
@@ -261,5 +261,9 @@ public class CommentLog implements Comparable{
 
         /* For Descending order do like this */
         //return compareage-this.studentage;
+    }
+
+    public boolean isDirect() {
+        return depth.equals(1);
     }
 }

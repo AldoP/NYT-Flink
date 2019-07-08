@@ -1,6 +1,6 @@
 package myflink.utils;
 
-import myflink.CommentLog;
+import myflink.entity.CommentLog;
 import org.apache.flink.api.common.serialization.DeserializationSchema;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.TypeExtractor;

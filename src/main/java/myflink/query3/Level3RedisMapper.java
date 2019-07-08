@@ -1,6 +1,6 @@
 package myflink.query3;
 
-import myflink.CommentLog;
+import myflink.entity.CommentLog;
 import myflink.utils.JedisPoolHolder;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;

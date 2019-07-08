@@ -1,9 +1,9 @@
 package myflink;
+import myflink.entity.CommentLog;
 import myflink.utils.CommentLogSchema;
 
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.TimeCharacteristic;
@@ -66,7 +66,7 @@ public class Query1 {
                         List<Tuple2<Integer, CommentLog>> tuple2s = new ArrayList<Tuple2<Integer, CommentLog>>();
 
                         for (Tuple2<CommentLog, Integer> my_tuple : iterable) {
-                            tuple2s.add(new Tuple2<Integer, CommentLog>(my_tuple.f1, my_tuple.f0));
+                            tuple2s.add(new Tuple2<>(my_tuple.f1, my_tuple.f0));
                         }
                         Collections.sort(tuple2s, new Comparator<Tuple2<Integer, CommentLog>>() {
                             @Override
