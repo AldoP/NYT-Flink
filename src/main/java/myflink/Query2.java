@@ -21,16 +21,16 @@ import java.util.*;
 
 public class Query2 {
 
-    private final static int WINDOW_SIZE = 1;
+    //private final static int WINDOW_SIZE = 1;
     //private final static int WINDOW_SIZE = 7;
-    //private final static int WINDOW_SIZE = 30;
+    private final static int WINDOW_SIZE = 30;
     private final static String PATHOUT = "_query2.out";
 
     public static void main(String[] args) throws Exception{
 
         // Create the execution environment.
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        // set Event Time
+        // Set Event Time
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
         // Get the input data
@@ -50,7 +50,7 @@ public class Query2 {
                 });
 
         DataStream<Tuple2<Integer, Long>> hourlySum = timestampedAndWatermarked
-                .keyBy(value -> value.articleID)
+                .keyBy(CommentLog::getArticleID)
                 .timeWindow(Time.minutes(120))
                 .aggregate(new SumAggregator())
                 .timeWindowAll(Time.minutes(120))
@@ -115,17 +115,23 @@ public class Query2 {
 
         @Override
         public void process(Context context, Iterable<Tuple2<Integer, Long>> iterable, Collector<String> collector) {
+
             LocalDateTime startDate = LocalDateTime.ofEpochSecond(
                     context.window().getStart() / 1000, 0, ZoneOffset.UTC);
             LocalDateTime endDate = LocalDateTime.ofEpochSecond(
                     context.window().getEnd() / 1000, 0, ZoneOffset.UTC);
             StringBuilder result = new StringBuilder(startDate.toString() + " " + endDate.toString() + ": ");
+
+            // Sort time slots
             List<Tuple2<Integer, Long>> sortedList = new ArrayList<>();
             for (Tuple2<Integer, Long> t : iterable)
                 sortedList.add(t);
             sortedList.sort(Comparator.comparingInt(a -> a.f0));
+
+            // Build result string
             int hour = 0;
             for (Tuple2<Integer, Long> hourlySum : sortedList) {
+                // fill missing time slots
                 while (!hourlySum.f0.equals(hour)) {
                     result.append(hour).append(":").append("0 ");
                     hour += 2;
@@ -133,8 +139,10 @@ public class Query2 {
                 result.append(hourlySum.f0.toString()).append(":").append(hourlySum.f1.toString()).append(" ");
                 hour += 2;
             }
+            // fill remaining missing time slots
             for (; hour != 24; hour += 2)
                 result.append(hour).append(":").append("0 ");
+
             collector.collect(result.toString());
         }
     }
