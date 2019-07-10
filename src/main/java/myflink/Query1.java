@@ -8,6 +8,7 @@ import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
@@ -23,14 +24,15 @@ import java.util.*;
 public class Query1 {
 
     //private static final int WINDOW_SIZE = 1;       // hours
-    private static final int WINDOW_SIZE = 24;      // hours
-    //private static final int WINDOW_SIZE = 24 * 7;  // hours
+    // private static final int WINDOW_SIZE = 24;      // hours
+    private static final int WINDOW_SIZE = 24 * 7;  // hours
 
-    public static void main(String[] args) throws Exception {
+    public static void run() throws Exception {
 
         // Create the execution environment.
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
-        env.setParallelism(8);
+        // StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
         //RocksDBStateBackend my_rocksDB = new RocksDBStateBackend("file:///tmp");
         //env.setStateBackend(my_rocksDB);
@@ -39,9 +41,14 @@ public class Query1 {
         Properties properties = new Properties();
         properties.setProperty("bootstrap.servers", "localhost:9092");
         properties.setProperty("group.id", "test");
-        DataStream<CommentLog> stream = env
-                .addSource(new FlinkKafkaConsumer<>("test", new CommentLogSchema(), properties));
-
+        DataStream<CommentLog> stream = null;
+        try {
+             stream = env
+                    .addSource(new FlinkKafkaConsumer<>("test", new CommentLogSchema(), properties));
+        }
+        catch (Exception e){
+            System.err.println("errore kafka "+e.toString());
+        }
         DataStream<CommentLog> timestampedAndWatermarked = stream
                 .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentLog>(Time.seconds(1)) {
                     @Override

@@ -26,7 +26,7 @@ public class Query2 {
     private final static int WINDOW_SIZE = 30;
     private final static String PATHOUT = "_query2.out";
 
-    public static void main(String[] args) throws Exception{
+    public static void run() throws Exception{
 
         // Create the execution environment.
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();

@@ -6,6 +6,7 @@ import myflink.query3.Level3RedisMapper;
 import myflink.query3.MyRedisMapper;
 import myflink.utils.CommentLogSchema;
 import myflink.utils.JedisPoolHolder;
+import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.fs.FileSystem;
@@ -29,12 +30,13 @@ import java.util.*;
  */
 public class Query3 {
 
-    public static void main(String[] args) throws Exception {
+    public static void run() throws Exception {
 
         final int WINDOW_SIZE = 24; //in numero di ore
 
         // Create the execution environment.
         StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
+
         env.setParallelism(8);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
         // RocksDBStateBackend my_rocksDB = new RocksDBStateBackend("file:///tmp");
@@ -75,8 +77,6 @@ public class Query3 {
                 .timeWindow(Time.hours(WINDOW_SIZE))
                 .sum(1);
 
-
-
         /*
 
                ********** Numero di commenti di risposta **********
@@ -111,8 +111,6 @@ public class Query3 {
 
 
 
-
-
         // ********* Risultato finale (implementa formula) ************
 
         DataStream<String> classificaFinale = rankComment
@@ -140,16 +138,18 @@ public class Query3 {
                                 return v2 - v1;
                             }
                         });
-                        res += "\n--------------------";
+
 
                         Date date_start = new Date(timeWindow.getStart());
-                        res += "TS: " + date_start;
+                        res += " " + date_start;
                         int size = tuple2s.size();
                         for (int i = 0; i < 10 && i < size; i++) {
-                            res += "\n User_" + (i + 1) + "  : " + tuple2s.get(i).f0;
-                            res += "\n Rating_" + (i + 1) + "  : " + String.format("%.2f", tuple2s.get(i).f1);
+                            res += " " +tuple2s.get(i).f0+" ,";
+                            res += " " + String.format("%.2f", tuple2s.get(i).f1)+" ,";
                         }
-                        res += "\n-------------------";
+
+                        res = res.substring(0, res.length() - 1);
+
                         collector.collect(res);
 
                         //TODO da rimuovere la stampa
