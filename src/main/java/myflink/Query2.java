@@ -36,9 +36,9 @@ public class Query2 {
         // Get the input data
         Properties properties = new Properties();
         properties.setProperty("bootstrap.servers", "localhost:9092");
-        properties.setProperty("group.id", "test");
+        properties.setProperty("group.id", "flink");
         DataStream<CommentLog> stream = env
-                .addSource(new FlinkKafkaConsumer<>("test", new CommentLogSchema(), properties));
+                .addSource(new FlinkKafkaConsumer<>("flink", new CommentLogSchema(), properties));
 
         DataStream<CommentLog> timestampedAndWatermarked = stream
                 .filter(CommentLog::isDirect)
