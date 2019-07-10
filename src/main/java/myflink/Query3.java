@@ -37,7 +37,6 @@ public class Query3 {
         // Create the execution environment.
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        env.setParallelism(8);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
         JedisPoolHolder.init("localhost", 6379);
