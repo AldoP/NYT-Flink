@@ -35,12 +35,10 @@ public class Query3 {
         final int WINDOW_SIZE = 24; //in numero di ore
 
         // Create the execution environment.
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         env.setParallelism(8);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-        // RocksDBStateBackend my_rocksDB = new RocksDBStateBackend("file:///tmp");
-        // env.setStateBackend(my_rocksDB);
 
         JedisPoolHolder.init("localhost", 6379);
 
