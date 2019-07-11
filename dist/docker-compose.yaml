@@ -23,6 +23,7 @@ services:
       - "9092:9092"
     environment:
       KAFKA_BROKER_ID: 1
+      KAFKA_CREATE_TOPICS: 'flink'
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
@@ -30,32 +31,67 @@ services:
     volumes: 
       - ./data/broker:/data
 
-  jobmanager:
-    image: flink
-    hostname: jobmanager
-    container_name: jobmanager
-    expose:
-      - "6123"
+  job-cluster:
+    image: smvfal/flink-nyt2
+    hostname: job-cluster
+    container_name: job-cluster
     ports:
       - "8081:8081"
-    command: jobmanager
-#    command: bash
-    stdin_open: true
-    tty: true
-    environment:
-      - JOB_MANAGER_RPC_ADDRESS=jobmanager
-    volumes: 
-      - ./data/flink:/data
+    command: job-cluster --job-classname myflink.StreamingJob -Djobmanager.rpc.address=job-cluster
 
   taskmanager:
-    image: flink
+    image: smvfal/flink-nyt2
     hostname: taskmanager
     container_name: taskmanager
-    expose:
-      - "6121"
-      - "6122"
-    depends_on:
-      - jobmanager
-    command: taskmanager
-    environment:
-      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+    command: task-manager -Djobmanager.rpc.address=job-cluster
+
+  redis:
+    image: redis:3.2-alpine
+    hostname: redis
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+#  flink:
+#    image: smvfal/nyt-flink
+#    hostname: flink
+#    container_name: flink
+#    expose:
+#      - "6123"
+#    ports:
+#      - "8081:8081"
+#    command: flink run /nyt.jar
+#    tty: true
+#    stdin_open: true
+
+#  jobmanager:
+#    image: flink
+#    hostname: jobmanager
+#    container_name: jobmanager
+#    expose:
+#      - "6123"
+#    ports:
+#      - "8081:8081"
+#    entrypoint: ["/docker-entrypoint.sh","jobmanager"]
+##    command: jobmanager
+#    command: flink run my-flink-project-0.1.jar
+#    tty: true
+#    stdin_open: true
+#    environment:
+#      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+#    volumes: 
+#      - ./data/flink:/data
+#
+#  taskmanager:
+#    image: smvfal/flink-nyt
+#    hostname: taskmanager
+#    container_name: taskmanager
+#    expose:
+#      - "6121"
+#      - "6122"
+#    depends_on:
+#      - jobmanager
+#    command: taskmanager
+#    environment:
+#      - JOB_MANAGER_RPC_ADDRESS=jobmanager
