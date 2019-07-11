@@ -39,12 +39,12 @@ public class Query1 {
 
         // Get the input data
         Properties properties = new Properties();
-        properties.setProperty("bootstrap.servers", "localhost:9092");
-        properties.setProperty("group.id", "test");
+        properties.setProperty("bootstrap.servers", "broker:29092");
+        properties.setProperty("group.id", "flink");
         DataStream<CommentLog> stream = null;
         try {
              stream = env
-                    .addSource(new FlinkKafkaConsumer<>("test", new CommentLogSchema(), properties));
+                    .addSource(new FlinkKafkaConsumer<>("flink", new CommentLogSchema(), properties));
         }
         catch (Exception e){
             System.err.println("errore kafka "+e.toString());

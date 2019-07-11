@@ -48,9 +48,9 @@ public class Query3 {
         // Get the input data
         Properties properties = new Properties();
         properties.setProperty("bootstrap.servers", "localhost:9092");
-        properties.setProperty("group.id", "test");
+        properties.setProperty("group.id", "flink");
         DataStream<CommentLog> commentLog = env
-                .addSource(new FlinkKafkaConsumer<>("test", new CommentLogSchema(), properties));
+                .addSource(new FlinkKafkaConsumer<>("flink", new CommentLogSchema(), properties));
 
         // Assegna timestamp e watermark
         DataStream<CommentLog> timestampedAndWatermarked = commentLog
