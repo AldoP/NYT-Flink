@@ -163,8 +163,8 @@ public class Query3 {
 
 
         classificaFinale
-                .writeAsText(Constants.QUERY3_PATHOUT+"_"+WINDOW_SIZE, FileSystem.WriteMode.OVERWRITE)
-                .setParallelism(1);
+                .writeAsText(String.format(Constants.BASE_PATH + "query3_%d.out", WINDOW_SIZE),
+                FileSystem.WriteMode.OVERWRITE).setParallelism(1);
     }
 
     private static Double computeNumLike(Integer num, Boolean isSelected){
