@@ -1,10 +1,8 @@
 package myflink.Metriche;
 
 import myflink.Constants;
-import myflink.MyMapMetrics;
 import myflink.entity.CommentLog;
 import myflink.utils.CommentLogSchema;
-import org.apache.flink.api.common.functions.AggregateFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -13,17 +11,13 @@ import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 import org.apache.flink.util.Collector;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.*;
 
 public class Query1 {
@@ -32,18 +26,9 @@ public class Query1 {
     //private static final int WINDOW_SIZE = 24;      // hours
     //private static final int WINDOW_SIZE = 24 * 7;  // hours
 
-    public static void main(String[] args) throws Exception {
 
-        // Create the execution environment.
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+    public static void run(DataStream<CommentLog> commentLog) throws Exception {
 
-        // Get the input data
-        Properties properties = new Properties();
-        properties.setProperty("bootstrap.servers", "localhost:9092");
-        properties.setProperty("group.id", "test");
-        DataStream<CommentLog> commentLog = env
-                .addSource(new FlinkKafkaConsumer<>("test", new CommentLogSchema(), properties));
         // Parse the data, and group, windowing and aggregate it by word.
         DataStream<Tuple2<CommentLog, Integer>> data = commentLog
                 .map(cl -> new Tuple2<>(cl, 1)).returns(Types.TUPLE(Types.POJO(CommentLog.class), Types.INT));
@@ -104,8 +89,6 @@ public class Query1 {
         classifica.writeAsText(Constants.QUERY1_METRIC_PATHOUT+"_"+WINDOW_SIZE, FileSystem.WriteMode.OVERWRITE)
                 .setParallelism(1);
 
-        env.execute("Socket Window WordCount");
 
     }
-
 }

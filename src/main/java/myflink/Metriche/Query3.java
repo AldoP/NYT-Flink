@@ -31,28 +31,16 @@ import java.util.*;
  */
 public class Query3 {
 
-    public static void main(String[] args) throws Exception {
+    public static void run(DataStream<CommentLog> commentLog) throws Exception {
 
         final int WINDOW_SIZE = 24; //in numero di ore
 
-        // Create the execution environment.
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-
-
-        env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
         JedisPoolHolder.init("localhost", 6379);
 
         FlinkJedisPoolConfig conf = new FlinkJedisPoolConfig.Builder()
                 .setHost("localhost").build(); //aggiungere altri set
 
-
-        // Get the input data
-        Properties properties = new Properties();
-        properties.setProperty("bootstrap.servers", "localhost:9092");
-        properties.setProperty("group.id", "test");
-        DataStream<CommentLog> commentLog = env
-                .addSource(new FlinkKafkaConsumer<>("test", new CommentLogSchema(), properties));
 
         // Assegna timestamp e watermark
         DataStream<Tuple2<CommentLog, Long>> timestampedAndWatermarked = commentLog
@@ -111,8 +99,15 @@ public class Query3 {
         timestampedAndWatermarked
                 .filter(log -> log.f0.getDepth() == 2)
                 .map(myTuple -> myTuple.f0).returns(Types.POJO(CommentLog.class))
+                .map(myLog -> new Tuple3<String, String, String>(
+                        myLog.getCommentID(),
+                        myLog.getUserID(),
+                        myLog.getInReplyTo()
+                )).returns(Types.TUPLE(Types.STRING, Types.STRING, Types.STRING))
                 .map(new Level2RedisMapper())
+                .filter(myTuple -> myTuple.f1!= null && myTuple.f0 != null) //test FILTRO
                 .addSink(new RedisSink<Tuple2<String, String>>(conf, new MyRedisMapper()));
+
 
 
 
@@ -191,7 +186,7 @@ public class Query3 {
                 .writeAsText(Constants.QUERY3_METRIC_PATHOUT+"_"+WINDOW_SIZE, FileSystem.WriteMode.OVERWRITE)
                 .setParallelism(1);
 
-        env.execute("Socket Window Query 3");
+
         
     }
 

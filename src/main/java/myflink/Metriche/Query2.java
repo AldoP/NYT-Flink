@@ -33,19 +33,8 @@ public class Query2 {
     // private final static int WINDOW_SIZE = 30;
     private final static String PATHOUT_METRIC = "_query2_metric.out";
 
-    public static void main(String[] args) throws Exception{
+    public static void run(DataStream<CommentLog> stream) throws Exception{
 
-        // Create the execution environment.
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        // Set Event Time
-        env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-
-        // Get the input data
-        Properties properties = new Properties();
-        properties.setProperty("bootstrap.servers", "localhost:9092");
-        properties.setProperty("group.id", "test");
-        DataStream<CommentLog> stream = env
-                .addSource(new FlinkKafkaConsumer<>("test", new CommentLogSchema(), properties));
 
         DataStream<Tuple2<CommentLog, Long>> timestampedAndWatermarked = stream
                 .filter(CommentLog::isDirect)
@@ -78,7 +67,6 @@ public class Query2 {
         totalSum.writeAsText(Query2.WINDOW_SIZE + Query2.PATHOUT_METRIC, FileSystem.WriteMode.OVERWRITE)
                 .setParallelism(1);
 
-        env.execute();
     }
 
     // f0 -> count
