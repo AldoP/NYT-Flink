@@ -8,7 +8,7 @@ import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.timestamps.AscendingTimestampExtractor;
+import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
@@ -21,10 +21,13 @@ import java.util.*;
 
 public class Query2 {
 
-    //private final static int WINDOW_SIZE = 1;
+    private final static int WINDOW_SIZE = 1;
     //private final static int WINDOW_SIZE = 7;
-    private final static int WINDOW_SIZE = 30;
-    private final static String PATHOUT = "_query2.out";
+    //private final static int WINDOW_SIZE = 30;
+
+    public static void main(String[] args) throws Exception {
+        Query2.run();
+    }
 
     public static void run() throws Exception{
 
@@ -42,9 +45,9 @@ public class Query2 {
 
         DataStream<CommentLog> timestampedAndWatermarked = stream
                 .filter(CommentLog::isDirect)
-                .assignTimestampsAndWatermarks(new AscendingTimestampExtractor<CommentLog>() {
+                .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentLog>(Time.seconds(1)) {
                     @Override
-                    public long extractAscendingTimestamp(CommentLog cl) {
+                    public long extractTimestamp(CommentLog cl) {
                         return cl.getCreateDate();
                     }
                 });
@@ -65,8 +68,8 @@ public class Query2 {
 
         hourlySum.print();
         totalSum.print();
-        totalSum.writeAsText(Query2.WINDOW_SIZE + Query2.PATHOUT, FileSystem.WriteMode.OVERWRITE)
-                .setParallelism(1);
+        totalSum.writeAsText(String.format(Constants.BASE_PATH + "Query2_%d.out", Query2.WINDOW_SIZE),
+                FileSystem.WriteMode.OVERWRITE).setParallelism(1);
 
         env.execute();
     }
@@ -116,11 +119,14 @@ public class Query2 {
         @Override
         public void process(Context context, Iterable<Tuple2<Integer, Long>> iterable, Collector<String> collector) {
 
+            /*
             LocalDateTime startDate = LocalDateTime.ofEpochSecond(
                     context.window().getStart() / 1000, 0, ZoneOffset.UTC);
             LocalDateTime endDate = LocalDateTime.ofEpochSecond(
                     context.window().getEnd() / 1000, 0, ZoneOffset.UTC);
             StringBuilder result = new StringBuilder(startDate.toString() + " " + endDate.toString() + ": ");
+             */
+            StringBuilder result = new StringBuilder(Long.toString(context.window().getStart() / 1000));
 
             // Sort time slots
             List<Tuple2<Integer, Long>> sortedList = new ArrayList<>();
@@ -133,15 +139,18 @@ public class Query2 {
             for (Tuple2<Integer, Long> hourlySum : sortedList) {
                 // fill missing time slots
                 while (!hourlySum.f0.equals(hour)) {
-                    result.append(hour).append(":").append("0 ");
+                    //result.append(hour).append(":").append("0 ");
+                    result.append(", 0");
                     hour += 2;
                 }
-                result.append(hourlySum.f0.toString()).append(":").append(hourlySum.f1.toString()).append(" ");
+                //result.append(hourlySum.f0.toString()).append(":").append(hourlySum.f1.toString()).append(" ");
+                result.append(", ").append(hourlySum.f1.toString());
                 hour += 2;
             }
             // fill remaining missing time slots
             for (; hour != 24; hour += 2)
-                result.append(hour).append(":").append("0 ");
+                result.append(", 0");
+                //result.append(hour).append(":").append("0 ");
 
             collector.collect(result.toString());
         }
