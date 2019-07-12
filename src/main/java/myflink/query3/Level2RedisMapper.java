@@ -9,12 +9,6 @@ import redis.clients.jedis.JedisPool;
 
 public  class Level2RedisMapper implements MapFunction <CommentLog, Tuple2<String, String>> {
 
-    private JedisPool jedisPool = null;
-
-    public Level2RedisMapper(JedisPool jedisPool) {
-        this.jedisPool = jedisPool;
-    }
-
     public Level2RedisMapper() {
     }
 

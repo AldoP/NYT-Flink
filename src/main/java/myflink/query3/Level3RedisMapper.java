@@ -10,12 +10,6 @@ import redis.clients.jedis.JedisPool;
 
 public  class Level3RedisMapper implements FlatMapFunction<CommentLog, Tuple2<String, Double>> {
 
-    private JedisPool jedisPool = null;
-
-    public Level3RedisMapper(JedisPool jedisPool) {
-        this.jedisPool = jedisPool;
-    }
-
     public Level3RedisMapper() {
 
     }
