@@ -1,18 +1,14 @@
 package myflink;
 
 import myflink.entity.CommentLog;
-import myflink.utils.CommentLogSchema;
 import org.apache.flink.api.common.functions.AggregateFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.fs.FileSystem;
-import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
-import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 import org.apache.flink.util.Collector;
 
 import java.time.LocalDateTime;
@@ -21,27 +17,11 @@ import java.util.*;
 
 public class Query2 {
 
-    private final static int WINDOW_SIZE = 1;
-    //private final static int WINDOW_SIZE = 7;
+    //private final static int WINDOW_SIZE = 1;
+    private final static int WINDOW_SIZE = 7;
     //private final static int WINDOW_SIZE = 30;
 
-    public static void main(String[] args) throws Exception {
-        run();
-    }
-
-    public static void run() throws Exception{
-
-        // Create the execution environment.
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        // Set Event Time
-        env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-
-        // Get the input data
-        Properties properties = new Properties();
-        properties.setProperty("bootstrap.servers", "localhost:9092");
-        properties.setProperty("group.id", "flink");
-        DataStream<CommentLog> stream = env
-                .addSource(new FlinkKafkaConsumer<>("flink", new CommentLogSchema(), properties));
+    public static void run(DataStream<CommentLog> stream) throws Exception{
 
         DataStream<CommentLog> timestampedAndWatermarked = stream
                 .filter(CommentLog::isDirect)
@@ -70,8 +50,6 @@ public class Query2 {
         totalSum.print();
         totalSum.writeAsText(String.format(Constants.BASE_PATH + "query2_%d.out", WINDOW_SIZE),
                 FileSystem.WriteMode.OVERWRITE).setParallelism(1);
-
-        env.execute();
     }
 
 

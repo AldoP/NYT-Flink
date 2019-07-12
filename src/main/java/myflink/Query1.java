@@ -5,44 +5,24 @@ import myflink.utils.CommentLogSchema;
 import org.apache.flink.api.common.functions.AggregateFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.fs.FileSystem;
-import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
-import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 import org.apache.flink.util.Collector;
 
 import java.util.*;
 
 public class Query1 {
 
-    private static final int WINDOW_SIZE = 1;       // hours
-    //private static final int WINDOW_SIZE = 24;      // hours
+    //private static final int WINDOW_SIZE = 1;       // hours
+    private static final int WINDOW_SIZE = 24;      // hours
     //private static final int WINDOW_SIZE = 24 * 7;  // hours
 
-    public static void main(String[] args) throws Exception {
-        Query1.run();
-    }
+    public static void run(DataStream<CommentLog> stream) throws Exception {
 
-    public static void run() throws Exception {
-
-        // Create the execution environment.
-        // StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-
-        env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-
-        // Get the input data
-        Properties properties = new Properties();
-        //properties.setProperty("bootstrap.servers", "broker:29092");
-        properties.setProperty("bootstrap.servers", "localhost:9092");
-        properties.setProperty("group.id", "flink");
-        DataStream<CommentLog> stream = env.addSource(
-                new FlinkKafkaConsumer<>("flink", new CommentLogSchema(), properties));
         DataStream<CommentLog> timestampedAndWatermarked = stream
                 .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentLog>(Time.seconds(1)) {
                     @Override
@@ -62,8 +42,6 @@ public class Query1 {
         chart.print();
         chart.writeAsText(String.format(Constants.BASE_PATH + "query1_%d.out",WINDOW_SIZE),
                 FileSystem.WriteMode.OVERWRITE).setParallelism(1);
-
-        env.execute();
     }
 
     private static class SumAggregator implements AggregateFunction<CommentLog, Long, Long> {

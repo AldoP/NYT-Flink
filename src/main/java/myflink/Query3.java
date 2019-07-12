@@ -4,20 +4,15 @@ import myflink.entity.CommentLog;
 import myflink.query3.Level2RedisMapper;
 import myflink.query3.Level3RedisMapper;
 import myflink.query3.MyRedisMapper;
-import myflink.utils.CommentLogSchema;
 import myflink.utils.JedisPoolHolder;
-import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.fs.FileSystem;
-import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
-import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 import org.apache.flink.streaming.connectors.redis.RedisSink;
 import org.apache.flink.streaming.connectors.redis.common.config.FlinkJedisPoolConfig;
 import org.apache.flink.util.Collector;
@@ -30,30 +25,17 @@ import java.util.*;
  */
 public class Query3 {
 
-    public static void run() throws Exception {
+    public static void run(DataStream<CommentLog> stream) throws Exception {
 
         final int WINDOW_SIZE = 24; //in numero di ore
-
-        // Create the execution environment.
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-
-        env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
         JedisPoolHolder.init("localhost", 6379);
 
         FlinkJedisPoolConfig conf = new FlinkJedisPoolConfig.Builder()
                 .setHost("localhost").build(); //aggiungere altri set
 
-
-        // Get the input data
-        Properties properties = new Properties();
-        properties.setProperty("bootstrap.servers", "localhost:9092");
-        properties.setProperty("group.id", "flink");
-        DataStream<CommentLog> commentLog = env
-                .addSource(new FlinkKafkaConsumer<>("flink", new CommentLogSchema(), properties));
-
         // Assegna timestamp e watermark
-        DataStream<CommentLog> timestampedAndWatermarked = commentLog
+        DataStream<CommentLog> timestampedAndWatermarked = stream
                 .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentLog>(Time.seconds(1)) {
                     @Override
                     public long extractTimestamp(CommentLog logIntegerTuple2) {
@@ -160,9 +142,6 @@ public class Query3 {
         classificaFinale
                 .writeAsText(Constants.QUERY3_PATHOUT+"_"+WINDOW_SIZE, FileSystem.WriteMode.OVERWRITE)
                 .setParallelism(1);
-
-        env.execute("Socket Window Query 3");
-        
     }
 
     private static Double computeNumLike(Integer num, Boolean isSelected){
@@ -171,20 +150,5 @@ public class Query3 {
         return  num * w * 0.3;
 
     }
-/*
-    private static JedisPoolConfig buildPoolConfig() {
-        final JedisPoolConfig poolConfig = new JedisPoolConfig();
-        poolConfig.setMaxTotal(128);
-        poolConfig.setMaxIdle(128);
-        poolConfig.setMinIdle(16);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setTestOnReturn(true);
-        poolConfig.setTestWhileIdle(true);
-        poolConfig.setMinEvictableIdleTimeMillis(Duration.ofSeconds(60).toMillis());
-        poolConfig.setTimeBetweenEvictionRunsMillis(Duration.ofSeconds(30).toMillis());
-        poolConfig.setNumTestsPerEvictionRun(3);
-        poolConfig.setBlockWhenExhausted(true);
-        return poolConfig;
-    }
-*/
+
 }
