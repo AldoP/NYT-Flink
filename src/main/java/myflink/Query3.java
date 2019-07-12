@@ -4,25 +4,18 @@ import myflink.entity.CommentLog;
 import myflink.query3.Level2RedisMapper;
 import myflink.query3.Level3RedisMapper;
 import myflink.query3.MyRedisMapper;
-import myflink.utils.CommentLogSchema;
 import myflink.utils.JedisPoolHolder;
-import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.core.fs.FileSystem;
-import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
-import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 import org.apache.flink.streaming.connectors.redis.RedisSink;
 import org.apache.flink.streaming.connectors.redis.common.config.FlinkJedisPoolConfig;
 import org.apache.flink.util.Collector;
-import redis.clients.jedis.Jedis;
 
 import java.util.*;
 
@@ -32,40 +25,17 @@ import java.util.*;
  */
 public class Query3 {
 
-    public static void run() throws Exception {
+    public static void run(DataStream<CommentLog> stream) throws Exception {
 
-        final int WINDOW_SIZE = 24*30; //in numero di ore
-        boolean docker = true;
+        final int WINDOW_SIZE = 24; //in numero di ore
 
-        // Create the execution environment.
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        JedisPoolHolder.init("localhost", 6379);
 
-        env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-
-        if(docker) {JedisPoolHolder.init("redis", 6379);}
-        else{ JedisPoolHolder.init("localhost", 6379); }
-
-        FlinkJedisPoolConfig conf;
-
-        if(docker){ conf = new FlinkJedisPoolConfig.Builder().setHost("redis").setPort(6379).build(); }
-        else {      conf = new FlinkJedisPoolConfig.Builder() .setHost("localhost").setPort(6379).build();}
-
-
-        // Get the input data
-        Properties properties = new Properties();
-
-        if(docker){ properties.setProperty("bootstrap.servers", "broker:29092"); }
-        else{       properties.setProperty("bootstrap.servers", "localhost:9092");}
-        properties.setProperty("group.id", "flink");
-
-
-
-        DataStream<CommentLog> commentLog = env
-                .addSource(new FlinkKafkaConsumer<>("flink", new CommentLogSchema(), properties))
-                .filter(comment -> comment != null);
+        FlinkJedisPoolConfig conf = new FlinkJedisPoolConfig.Builder()
+                .setHost("localhost").build(); //aggiungere altri set
 
         // Assegna timestamp e watermark
-        DataStream<CommentLog> timestampedAndWatermarked = commentLog
+        DataStream<CommentLog> timestampedAndWatermarked = stream
                 .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentLog>(Time.seconds(1)) {
                     @Override
                     public long extractTimestamp(CommentLog logIntegerTuple2) {
@@ -105,13 +75,7 @@ public class Query3 {
         // Livello 2
         timestampedAndWatermarked
                 .filter(log -> log.getDepth() == 2)
-                .map(myLog -> new Tuple3<String, String, String>(
-                        myLog.getCommentID(),
-                        myLog.getUserID(),
-                        myLog.getInReplyTo()
-                )).returns(Types.TUPLE(Types.STRING, Types.STRING, Types.STRING))
                 .map(new Level2RedisMapper())
-                .filter(myTuple -> myTuple.f1!= null && myTuple.f0 != null) //test FILTRO
                 .addSink(new RedisSink<Tuple2<String, String>>(conf, new MyRedisMapper()));
 
 
@@ -155,8 +119,8 @@ public class Query3 {
                         });
 
 
-                        // Date date_start = new Date(timeWindow.getStart());
-                        res += " " + timeWindow.getStart()+" ,";
+                        Date date_start = new Date(timeWindow.getStart());
+                        res += " " + date_start;
                         int size = tuple2s.size();
                         for (int i = 0; i < 10 && i < size; i++) {
                             res += " " +tuple2s.get(i).f0+" ,";
@@ -178,9 +142,6 @@ public class Query3 {
         classificaFinale
                 .writeAsText(Constants.QUERY3_PATHOUT+"_"+WINDOW_SIZE, FileSystem.WriteMode.OVERWRITE)
                 .setParallelism(1);
-
-        env.execute("Socket Window Query 3");
-        
     }
 
     private static Double computeNumLike(Integer num, Boolean isSelected){
