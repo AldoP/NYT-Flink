@@ -1,0 +1,34 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: /home/simone/Desktop/kompose/kompose convert
+    kompose.service.type: LoadBalancer
+    kompose.version: 1.16.0 (0c01309)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: job-cluster
+  name: job-cluster
+spec:
+  replicas: 1
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        io.kompose.service: job-cluster
+    spec:
+      containers:
+      - args:
+        - job-cluster
+        - --job-classname
+        - myflink.StreamingJob
+        - -Djobmanager.rpc.address=job-cluster
+        image: aldo92/flink-nyt
+        name: job-cluster
+        ports:
+        - containerPort: 8081
+        resources: {}
+      hostname: job-cluster
+      restartPolicy: Always
+status: {}

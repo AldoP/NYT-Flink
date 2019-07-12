@@ -1,0 +1,29 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: /home/simone/Desktop/kompose/kompose convert
+    kompose.version: 1.16.0 (0c01309)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: taskmanager
+  name: taskmanager
+spec:
+  replicas: 1
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        io.kompose.service: taskmanager
+    spec:
+      containers:
+      - args:
+        - task-manager
+        - -Djobmanager.rpc.address=job-cluster
+        image: aldo92/flink-nyt
+        name: taskmanager
+        resources: {}
+      hostname: taskmanager
+      restartPolicy: Always
+status: {}

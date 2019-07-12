@@ -43,51 +43,51 @@ services:
 
 ### Container per esecuzione in Kubernetes con immagine jar-embedded
 
-#   job-cluster:
-#     image: smvfal/flink-nyt
-#     hostname: job-cluster
-#     container_name: job-cluster
-#     ports:
-#       - "8081:8081"
-#     command: job-cluster --job-classname myflink.StreamingJob -Djobmanager.rpc.address=job-cluster
-#     labels:
-##     kompose.service.expose: "flink.com"
-#       kompose.service.type: LoadBalancer
-#
-#   taskmanager:
-#     image: smvfal/flink-nyt
-#     hostname: taskmanager
-#     container_name: taskmanager
-#     command: task-manager -Djobmanager.rpc.address=job-cluster
+  job-cluster:
+    image: aldo92/flink-nyt
+    hostname: job-cluster
+    container_name: job-cluster
+    ports:
+      - "8081:8081"
+    command: job-cluster --job-classname myflink.StreamingJob -Djobmanager.rpc.address=job-cluster
+    labels:
+#    kompose.service.expose: "flink.com"
+      kompose.service.type: LoadBalancer
+
+  taskmanager:
+    image: aldo92/flink-nyt
+    hostname: taskmanager
+    container_name: taskmanager
+    command: task-manager -Djobmanager.rpc.address=job-cluster
 
 
 ### Container per esecuzione locale con sottomissione del jar tramite script
 
-  jobmanager:
-    image: flink
-    hostname: jobmanager
-    container_name: jobmanager
-    expose:
-      - "6123"
-    ports:
-      - "8081:8081"
-    command: jobmanager
-    tty: true
-    stdin_open: true
-    environment:
-      - JOB_MANAGER_RPC_ADDRESS=jobmanager
-    volumes: 
-      - ./data/flink:/data
-
-  taskmanager:
-    image: flink
-    hostname: taskmanager
-    container_name: taskmanager
-    expose:
-      - "6121"
-      - "6122"
-    depends_on:
-      - jobmanager
-    command: taskmanager
-    environment:
-      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+#  jobmanager:
+#    image: flink
+#    hostname: jobmanager
+#    container_name: jobmanager
+#    expose:
+#      - "6123"
+#    ports:
+#      - "8081:8081"
+#    command: jobmanager
+#    tty: true
+#    stdin_open: true
+#    environment:
+#      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+#    volumes: 
+#      - ./data/flink:/data
+#
+#  taskmanager:
+#    image: flink
+#    hostname: taskmanager
+#    container_name: taskmanager
+#    expose:
+#      - "6121"
+#      - "6122"
+#    depends_on:
+#      - jobmanager
+#    command: taskmanager
+#    environment:
+#      - JOB_MANAGER_RPC_ADDRESS=jobmanager
