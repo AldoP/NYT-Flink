@@ -3,12 +3,13 @@ package myflink.query3;
 import myflink.entity.CommentLog;
 import myflink.utils.JedisPoolHolder;
 import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.util.Collector;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 
-public  class Level3RedisMapper implements FlatMapFunction<CommentLog, Tuple2<String, Double>> {
+public  class Level3RedisMapper extends RichFlatMapFunction<CommentLog, Tuple2<String, Double>> {
 
     public Level3RedisMapper() {
 
@@ -17,8 +18,13 @@ public  class Level3RedisMapper implements FlatMapFunction<CommentLog, Tuple2<St
     @Override
     public void flatMap(CommentLog commentLog, Collector<Tuple2<String, Double>> collector) throws Exception {
 
-        try(Jedis jedis = JedisPoolHolder.getInstance().getResource()){
+        Jedis jedis = null;
+        try{
+            //(Jedis jedis = JedisPoolHolder.getInstance().getResource()){
+        //try (Jedis jedis = new Jedis("redis", 6379)) {
 
+            //jedis = JedisPoolHolder.getInstance().getResource();
+            jedis = new Jedis("redis", 6379);
             String commentIDPadre = commentLog.getInReplyTo();
             String userIDPadre = jedis.get(commentIDPadre);
 
@@ -41,7 +47,11 @@ public  class Level3RedisMapper implements FlatMapFunction<CommentLog, Tuple2<St
         catch (Exception e){
             System.err.println("Errore mapper livello 3, "+e.toString());
         }
-
+        finally {
+            if (jedis != null) {
+                jedis.close();
+            }
+        }
 
     }
 }
