@@ -26,7 +26,7 @@ public class Query2 {
     //private final static int WINDOW_SIZE = 30;
 
     public static void main(String[] args) throws Exception {
-        Query2.run();
+        run();
     }
 
     public static void run() throws Exception{
@@ -61,14 +61,14 @@ public class Query2 {
 
         DataStream<String> totalSum = hourlySum
                 .keyBy(0)
-                .timeWindow(Time.days(Query2.WINDOW_SIZE))
+                .timeWindow(Time.days(WINDOW_SIZE))
                 .reduce((v1, v2) -> new Tuple2<>(v1.f0, v1.f1 + v2.f1))
-                .timeWindowAll(Time.days(Query2.WINDOW_SIZE))
+                .timeWindowAll(Time.days(WINDOW_SIZE))
                 .process(new TotalSumProcessAllWindowFunction());
 
         hourlySum.print();
         totalSum.print();
-        totalSum.writeAsText(String.format(Constants.BASE_PATH + "Query2_%d.out", Query2.WINDOW_SIZE),
+        totalSum.writeAsText(String.format(Constants.BASE_PATH + "query2_%d.out", WINDOW_SIZE),
                 FileSystem.WriteMode.OVERWRITE).setParallelism(1);
 
         env.execute();

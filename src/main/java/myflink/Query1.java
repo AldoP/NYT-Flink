@@ -8,7 +8,6 @@ import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
@@ -17,15 +16,17 @@ import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 import org.apache.flink.util.Collector;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.*;
 
 public class Query1 {
 
-    //private static final int WINDOW_SIZE = 1;       // hours
-    // private static final int WINDOW_SIZE = 24;      // hours
-    private static final int WINDOW_SIZE = 24 * 7;  // hours
+    private static final int WINDOW_SIZE = 1;       // hours
+    //private static final int WINDOW_SIZE = 24;      // hours
+    //private static final int WINDOW_SIZE = 24 * 7;  // hours
+
+    public static void main(String[] args) throws Exception {
+        Query1.run();
+    }
 
     public static void run() throws Exception {
 
@@ -34,21 +35,14 @@ public class Query1 {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-        //RocksDBStateBackend my_rocksDB = new RocksDBStateBackend("file:///tmp");
-        //env.setStateBackend(my_rocksDB);
 
         // Get the input data
         Properties properties = new Properties();
-        properties.setProperty("bootstrap.servers", "broker:29092");
+        //properties.setProperty("bootstrap.servers", "broker:29092");
+        properties.setProperty("bootstrap.servers", "localhost:9092");
         properties.setProperty("group.id", "flink");
-        DataStream<CommentLog> stream = null;
-        try {
-             stream = env
-                    .addSource(new FlinkKafkaConsumer<>("flink", new CommentLogSchema(), properties));
-        }
-        catch (Exception e){
-            System.err.println("errore kafka "+e.toString());
-        }
+        DataStream<CommentLog> stream = env.addSource(
+                new FlinkKafkaConsumer<>("flink", new CommentLogSchema(), properties));
         DataStream<CommentLog> timestampedAndWatermarked = stream
                 .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentLog>(Time.seconds(1)) {
                     @Override
@@ -66,9 +60,8 @@ public class Query1 {
                 .process(new ChartProcessAllWindowFunction());
 
         chart.print();
-        chart.writeAsText(Constants.BASE_PATH + Constants.QUERY1_PATHOUT + "_" + WINDOW_SIZE,
-                FileSystem.WriteMode.OVERWRITE)
-                .setParallelism(1);
+        chart.writeAsText(String.format(Constants.BASE_PATH + "query1_%d.out",WINDOW_SIZE),
+                FileSystem.WriteMode.OVERWRITE).setParallelism(1);
 
         env.execute();
     }
@@ -120,15 +113,18 @@ public class Query1 {
 
             counts.sort((a, b) -> new Long(b.f1 - a.f1).intValue());
 
+            /*
             LocalDateTime startDate = LocalDateTime.ofEpochSecond(
                     context.window().getStart() / 1000, 0, ZoneOffset.UTC);
             LocalDateTime endDate = LocalDateTime.ofEpochSecond(
                     context.window().getEnd() / 1000, 0, ZoneOffset.UTC);
             StringBuilder result = new StringBuilder(startDate.toString() + " " + endDate.toString() + ": ");
+             */
+            StringBuilder result = new StringBuilder(Long.toString(context.window().getStart() / 1000));
 
             int size = counts.size();
             for (int i = 0; i < 3 && i < size; i++)
-                result.append(counts.get(i).f0).append(":").append(counts.get(i).f1).append(" ");
+                result.append(", ").append(counts.get(i).f0).append(", ").append(counts.get(i).f1);
 
             collector.collect(result.toString());
         }
