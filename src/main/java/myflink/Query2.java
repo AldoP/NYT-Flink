@@ -17,8 +17,8 @@ import java.util.*;
 
 public class Query2 {
 
-    //private final static int WINDOW_SIZE = 1;
-    private final static int WINDOW_SIZE = 7;
+    private final static int WINDOW_SIZE = 1;
+    //private final static int WINDOW_SIZE = 7;
     //private final static int WINDOW_SIZE = 30;
 
     public static void run(DataStream<CommentLog> stream) throws Exception{
@@ -46,7 +46,7 @@ public class Query2 {
                 .timeWindowAll(Time.days(WINDOW_SIZE))
                 .process(new TotalSumProcessAllWindowFunction());
 
-        hourlySum.print();
+        //hourlySum.print();
         totalSum.print();
         totalSum.writeAsText(String.format(Constants.BASE_PATH + "query2_%d.out", WINDOW_SIZE),
                 FileSystem.WriteMode.OVERWRITE).setParallelism(1);

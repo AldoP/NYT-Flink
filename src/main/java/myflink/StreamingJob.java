@@ -29,7 +29,7 @@ public class StreamingJob {
 
         Query1.run(stream);
         Query2.run(stream);
-        // Query3.run(stream);
+        Query3.run(stream);
 
         env.execute();
     }

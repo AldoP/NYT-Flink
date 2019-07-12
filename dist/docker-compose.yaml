@@ -29,7 +29,6 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     labels:
-#      kompose.service.expose: "broker"
       kompose.service.type: LoadBalancer
 
   redis:
@@ -47,17 +46,21 @@ services:
     image: aldo92/flink-nyt
     hostname: job-cluster
     container_name: job-cluster
+    depends_on:
+      - broker
+      - redis
     ports:
       - "8081:8081"
     command: job-cluster --job-classname myflink.StreamingJob -Djobmanager.rpc.address=job-cluster
     labels:
-#    kompose.service.expose: "flink.com"
       kompose.service.type: LoadBalancer
 
   taskmanager:
     image: aldo92/flink-nyt
     hostname: taskmanager
     container_name: taskmanager
+    depends_on:
+      - job-cluster
     command: task-manager -Djobmanager.rpc.address=job-cluster
 
 

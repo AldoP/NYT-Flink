@@ -219,6 +219,10 @@ public class CommentLog implements Comparable{
 
         CommentLog commentLogResult = null;
 
+        if (tokens[0].isEmpty()) {
+            System.err.println("SHIFT: " + s);
+        }
+
         try {
             CommentLog commentLog = new CommentLog();
 
@@ -235,6 +239,7 @@ public class CommentLog implements Comparable{
             commentLog.recommendations = Integer.parseInt(tokens[10]);
             commentLog.sectionName = tokens[11];
             commentLog.userDisplayName = tokens[12];
+            checkID(tokens[13]);
             commentLog.userID = tokens[13];
             commentLog.userLocation = tokens[14];
 
@@ -249,6 +254,11 @@ public class CommentLog implements Comparable{
         return commentLogResult;
     }
 
+    private static boolean checkID(String id) throws Exception {
+       if (!id.matches("[0-9]+"))
+           throw new Exception("ID non valido");
+       return true;
+    }
 
 
 
