@@ -28,22 +28,9 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    volumes: 
-      - ./data/broker:/data
-
-  job-cluster:
-    image: smvfal/flink-nyt2
-    hostname: job-cluster
-    container_name: job-cluster
-    ports:
-      - "8081:8081"
-    command: job-cluster --job-classname myflink.StreamingJob -Djobmanager.rpc.address=job-cluster
-
-  taskmanager:
-    image: smvfal/flink-nyt2
-    hostname: taskmanager
-    container_name: taskmanager
-    command: task-manager -Djobmanager.rpc.address=job-cluster
+    labels:
+#      kompose.service.expose: "broker"
+      kompose.service.type: LoadBalancer
 
   redis:
     image: redis:3.2-alpine
@@ -53,45 +40,54 @@ services:
     ports:
       - "6379:6379"
 
-#  flink:
-#    image: smvfal/nyt-flink
-#    hostname: flink
-#    container_name: flink
-#    expose:
-#      - "6123"
-#    ports:
-#      - "8081:8081"
-#    command: flink run /nyt.jar
-#    tty: true
-#    stdin_open: true
 
-#  jobmanager:
-#    image: flink
-#    hostname: jobmanager
-#    container_name: jobmanager
-#    expose:
-#      - "6123"
-#    ports:
-#      - "8081:8081"
-#    entrypoint: ["/docker-entrypoint.sh","jobmanager"]
-##    command: jobmanager
-#    command: flink run my-flink-project-0.1.jar
-#    tty: true
-#    stdin_open: true
-#    environment:
-#      - JOB_MANAGER_RPC_ADDRESS=jobmanager
-#    volumes: 
-#      - ./data/flink:/data
+### Container per esecuzione in Kubernetes con immagine jar-embedded
+
+#   job-cluster:
+#     image: smvfal/flink-nyt
+#     hostname: job-cluster
+#     container_name: job-cluster
+#     ports:
+#       - "8081:8081"
+#     command: job-cluster --job-classname myflink.StreamingJob -Djobmanager.rpc.address=job-cluster
+#     labels:
+##     kompose.service.expose: "flink.com"
+#       kompose.service.type: LoadBalancer
 #
-#  taskmanager:
-#    image: smvfal/flink-nyt
-#    hostname: taskmanager
-#    container_name: taskmanager
-#    expose:
-#      - "6121"
-#      - "6122"
-#    depends_on:
-#      - jobmanager
-#    command: taskmanager
-#    environment:
-#      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+#   taskmanager:
+#     image: smvfal/flink-nyt
+#     hostname: taskmanager
+#     container_name: taskmanager
+#     command: task-manager -Djobmanager.rpc.address=job-cluster
+
+
+### Container per esecuzione locale con sottomissione del jar tramite script
+
+  jobmanager:
+    image: flink
+    hostname: jobmanager
+    container_name: jobmanager
+    expose:
+      - "6123"
+    ports:
+      - "8081:8081"
+    command: jobmanager
+    tty: true
+    stdin_open: true
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+    volumes: 
+      - ./data/flink:/data
+
+  taskmanager:
+    image: flink
+    hostname: taskmanager
+    container_name: taskmanager
+    expose:
+      - "6121"
+      - "6122"
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=jobmanager
