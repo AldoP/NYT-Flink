@@ -11,7 +11,7 @@ import redis.clients.jedis.JedisPool;
 
 public  class Level3RedisMapper extends RichFlatMapFunction<CommentLog, Tuple2<String, Double>> {
 
-    boolean docker = false;
+    boolean docker = true;
     public Level3RedisMapper() {
 
     }
@@ -19,12 +19,12 @@ public  class Level3RedisMapper extends RichFlatMapFunction<CommentLog, Tuple2<S
     @Override
     public void flatMap(CommentLog commentLog, Collector<Tuple2<String, Double>> collector) throws Exception {
 
-        //Jedis jedis = null;
-        try(Jedis jedis = JedisPoolHolder.getInstance().getResource()){
-        //try{
+        Jedis jedis = null;
+        //try(Jedis jedis = JedisPoolHolder.getInstance().getResource()){
+        try{
 
-            //if(docker) {jedis = new Jedis("redis", 6379);}
-            //else{jedis = new Jedis();}
+            if(docker) {jedis = new Jedis("redis", 6379);}
+            else{jedis = new Jedis();}
             String commentIDPadre = commentLog.getInReplyTo();
             String userIDPadre = jedis.get(commentIDPadre);
 
@@ -47,12 +47,12 @@ public  class Level3RedisMapper extends RichFlatMapFunction<CommentLog, Tuple2<S
         catch (Exception e){
             System.err.println("Errore mapper livello 3, "+e.toString());
         }
-        /*
+
         finally {
             if (jedis != null) {
                 jedis.close();
             }
         }
-        */
+
     }
 }

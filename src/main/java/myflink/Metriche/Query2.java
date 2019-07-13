@@ -1,12 +1,18 @@
 package myflink.Metriche;
 
+import com.codahale.metrics.SlidingWindowReservoir;
 import myflink.entity.CommentLog;
 import myflink.utils.CommentLogSchema;
 import org.apache.flink.api.common.functions.AggregateFunction;
+import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.FileSystem;
+import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
+import org.apache.flink.dropwizard.metrics.DropwizardMeterWrapper;
+import org.apache.flink.metrics.Meter;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -44,8 +50,28 @@ public class Query2 {
                         return cl.getCreateDate();
                     }
                 })
-                .map(myCommentLog -> new Tuple2<>(myCommentLog, System.currentTimeMillis()))
-                .returns(Types.TUPLE(Types.POJO(CommentLog.class), Types.LONG));
+                .map(new RichMapFunction<CommentLog, Tuple2<CommentLog, Long>>() {
+
+                    private transient Meter meter;
+
+                    @Override
+                    public void open(Configuration parameters) throws Exception {
+                        com.codahale.metrics.Meter dropwizard = new com.codahale.metrics.Meter();
+                        this.meter = getRuntimeContext().getMetricGroup().addGroup("Query2").meter("throughput_in", new DropwizardMeterWrapper(dropwizard));
+                    }
+
+
+
+                    @Override
+                    public Tuple2<CommentLog, Long> map(CommentLog myCommentLog) throws Exception {
+                        this.meter.markEvent();
+                        return new Tuple2<>(myCommentLog, System.currentTimeMillis());
+                    }
+
+
+                });
+                //.map(myCommentLog -> new Tuple2<>(myCommentLog, System.currentTimeMillis()))
+                //.returns(Types.TUPLE(Types.POJO(CommentLog.class), Types.LONG));
 
 
         DataStream<Tuple3<Integer, Long, Long>> hourlySum = timestampedAndWatermarked
@@ -72,6 +98,7 @@ public class Query2 {
     // f0 -> count
     // f1 -> ts
     private static class SumAggregator implements AggregateFunction<Tuple2<CommentLog, Long>, Tuple2<Long,Long>, Tuple2<Long, Long>>{
+
 
         @Override
         public Tuple2<Long, Long> createAccumulator() {
@@ -113,6 +140,17 @@ public class Query2 {
             extends ProcessAllWindowFunction<Tuple2<Long, Long>, Tuple3<Integer, Long, Long>, TimeWindow>{
                     //ProcessAllWindowFunction<Long, Tuple2<Integer, Long>, TimeWindow> {
 
+        private transient Meter meter;
+
+        @Override
+        public void open(Configuration parameters) throws Exception {
+            com.codahale.metrics.Meter dropwizard = new com.codahale.metrics.Meter();
+            this.meter = getRuntimeContext().getMetricGroup().addGroup("Query2").meter("throughput_out_finestra_interna", new DropwizardMeterWrapper(dropwizard));
+
+
+        }
+
+
         @Override
         public void process(Context context, Iterable<Tuple2<Long, Long>> partialCounts, Collector<Tuple3<Integer, Long, Long>> out){
         //public void process(Context context, Iterable<Long> partialCounts, Collector<Tuple2<Integer, Long>> out) {
@@ -120,6 +158,7 @@ public class Query2 {
             Long ts = 0L;
 
             for (Tuple2<Long, Long> partialCount : partialCounts){
+                this.meter.markEvent();
                 count += partialCount.f0;
                 if(partialCount.f1 > ts){
                     ts = partialCount.f1;
@@ -136,12 +175,24 @@ public class Query2 {
     private static class TotalSumProcessAllWindowFunction
             extends ProcessAllWindowFunction<Tuple3<Integer, Long, Long>, String, TimeWindow> {
 
+        private transient Meter meter;
+
+        @Override
+        public void open(Configuration parameters) throws Exception {
+            com.codahale.metrics.Meter dropwizard = new com.codahale.metrics.Meter();
+            this.meter = getRuntimeContext().getMetricGroup().addGroup("Query2").meter("throughput_out_finestra_finale", new DropwizardMeterWrapper(dropwizard));
+
+
+        }
+
+
         @Override
         public void process(Context context, Iterable<Tuple3<Integer, Long, Long>> iterable, Collector<String> collector) {
 
             Tuple3<Integer, Long, Long> max_tuple = null;
             boolean first = true;
             for (Tuple3<Integer, Long, Long> my_tuple : iterable) {
+                this.meter.markEvent();
                 if (first) {
                     max_tuple = new Tuple3<Integer, Long, Long>(my_tuple.f0, my_tuple.f1, my_tuple.f2);
                 }
@@ -152,11 +203,10 @@ public class Query2 {
 
             Long localTime = System.currentTimeMillis();
 
-
-
             String res = "\n"+context.window().getStart();
 
             res += ","+ (localTime - max_tuple.f2);
+
             //System.out.print(res);
             collector.collect(res);
 

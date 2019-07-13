@@ -9,19 +9,19 @@ import redis.clients.jedis.Jedis;
 
 public  class Level2RedisMapper extends RichMapFunction<Tuple3<String, String, String>, Tuple2<String, String>> {
 
-    boolean docker = false;
+    boolean docker = true;
     public Level2RedisMapper() {}
 
     @Override
     public Tuple2<String, String> map(Tuple3<String, String, String> myTuple) throws Exception {
 
         Tuple2<String, String> result = null;
-        //Jedis jedis = null;
+        Jedis jedis = null;
 
-        try (Jedis jedis = JedisPoolHolder.getInstance().getResource()){
-
-            //if(docker) {jedis = new Jedis("redis", 6379);}
-            //else{jedis = new Jedis(); }
+        //try (Jedis jedis = JedisPoolHolder.getInstance().getResource()){
+        try{
+            if(docker) {jedis = new Jedis("redis", 6379);}
+            else{jedis = new Jedis(); }
 
             String commentID = myTuple.f0; // commentLog.getCommentID();
             String userID = myTuple.f1; //commentLog.getUserID();
@@ -46,13 +46,13 @@ public  class Level2RedisMapper extends RichMapFunction<Tuple3<String, String, S
         catch (Exception e){
             System.err.println("Errore mapper livello 2, "+e.toString());
         }
-        /*
+
         finally {
             if (jedis != null) {
                 jedis.close();
             }
         }
-        */
+
 
         return result;
 

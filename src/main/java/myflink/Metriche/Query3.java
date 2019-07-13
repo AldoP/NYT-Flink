@@ -7,18 +7,23 @@ import myflink.query3.MyRedisMapper;
 import myflink.utils.CommentLogSchema;
 import myflink.utils.JedisPoolHolder;
 import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.common.functions.RichReduceFunction;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.FileSystem;
+import org.apache.flink.dropwizard.metrics.DropwizardMeterWrapper;
+import org.apache.flink.metrics.Meter;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
+import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
-import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 import org.apache.flink.streaming.connectors.redis.RedisSink;
 import org.apache.flink.streaming.connectors.redis.common.config.FlinkJedisPoolConfig;
 import org.apache.flink.util.Collector;
@@ -33,10 +38,14 @@ public class Query3 {
         final int WINDOW_SIZE = 24; //in numero di ore
 
 
-        JedisPoolHolder.init("localhost", 6379);
+        //JedisPoolHolder.init("localhost", 6379);
+        JedisPoolHolder.init("redis", 6379);
+
+        //FlinkJedisPoolConfig conf = new FlinkJedisPoolConfig.Builder()
+        //        .setHost("localhost").build(); //aggiungere altri set
 
         FlinkJedisPoolConfig conf = new FlinkJedisPoolConfig.Builder()
-                .setHost("localhost").build(); //aggiungere altri set
+                .setHost("redis").build(); //aggiungere altri set
 
 
         // Assegna timestamp e watermark
@@ -47,8 +56,28 @@ public class Query3 {
                         return logIntegerTuple2.getCreateDate();
                     }
                 })
-                .map(myCommentLog -> new Tuple2<>(myCommentLog, System.currentTimeMillis()))
-                .returns(Types.TUPLE(Types.POJO(CommentLog.class), Types.LONG));
+                .map(new RichMapFunction<CommentLog, Tuple2<CommentLog, Long>>() {
+
+                    private transient Meter meter;
+
+                    @Override
+                    public void open(Configuration parameters) throws Exception {
+                        com.codahale.metrics.Meter dropwizard = new com.codahale.metrics.Meter();
+                        this.meter = getRuntimeContext().getMetricGroup().addGroup("Query3").meter("throughput_in", new DropwizardMeterWrapper(dropwizard));
+                    }
+
+
+
+                    @Override
+                    public Tuple2<CommentLog, Long> map(CommentLog myCommentLog) throws Exception {
+                        this.meter.markEvent();
+                        return new Tuple2<>(myCommentLog, System.currentTimeMillis());
+                    }
+
+
+                });
+                //.map(myCommentLog -> new Tuple2<>(myCommentLog, System.currentTimeMillis()))
+                //.returns(Types.TUPLE(Types.POJO(CommentLog.class), Types.LONG));
 
         /*
          ********* Numero di Like **********
@@ -63,8 +92,11 @@ public class Query3 {
                 .keyBy(stringDoubleTuple2 -> stringDoubleTuple2.f0)
                 .timeWindow(Time.hours(WINDOW_SIZE))
                 .reduce(new ReduceFunction<Tuple3<String, Double, Long>>() {
+
+
                     @Override
                     public Tuple3<String, Double, Long> reduce(Tuple3<String, Double, Long> t1, Tuple3<String, Double, Long> t2) throws Exception {
+
                         Long timestampMin = t1.f2;
 
                         if (t2.f2 > timestampMin) {
@@ -73,6 +105,26 @@ public class Query3 {
 
                         return new Tuple3<>(t1.f0, t1.f1 + t2.f1, timestampMin);
                     }
+                })
+                .map(new RichMapFunction<Tuple3<String,Double, Long>, Tuple3<String,Double, Long>>() {
+
+                    private transient Meter meter;
+
+                    @Override
+                    public void open(Configuration parameters) throws Exception {
+                        com.codahale.metrics.Meter dropwizard = new com.codahale.metrics.Meter();
+                        this.meter = getRuntimeContext().getMetricGroup().addGroup("Query3").meter("throughput_out_like", new DropwizardMeterWrapper(dropwizard));
+                    }
+
+                    @Override
+                    public Tuple3<String, Double, Long> map(Tuple3<String, Double, Long> myTuple) throws Exception {
+                        this.meter.markEvent();
+                        return myTuple;
+
+                    }
+
+
+
                 });
 
 
@@ -146,16 +198,24 @@ public class Query3 {
                     }
                 })
                 .timeWindowAll(Time.hours(WINDOW_SIZE))
-                .apply(new AllWindowFunction<Tuple3<String, Double, Long>, String, TimeWindow>() {
+                .process(new ProcessAllWindowFunction<Tuple3<String, Double, Long>, String, TimeWindow>() {
+
+                    private transient Meter meter;
 
                     @Override
-                    public void apply(TimeWindow timeWindow, Iterable<Tuple3<String, Double, Long>> iterable,
-                                      Collector<String> collector) throws Exception {
+                    public void open(Configuration parameters) throws Exception {
+                        com.codahale.metrics.Meter dropwizard = new com.codahale.metrics.Meter();
+                        this.meter = getRuntimeContext().getMetricGroup().addGroup("Query3").meter("throughput_window_out_join", new DropwizardMeterWrapper(dropwizard));
+                    }
 
+
+                    @Override
+                    public void process(Context context, Iterable<Tuple3<String, Double, Long>> iterable, Collector<String> collector) throws Exception {
                         Tuple3<String, Double, Long> max_tuple = null;
                         boolean first = true;
 
                         for (Tuple3<String, Double, Long> my_tuple : iterable) {
+                            this.meter.markEvent();
                             if (first) {
                                 max_tuple = new Tuple3<String, Double, Long>(my_tuple.f0, my_tuple.f1, my_tuple.f2);
                             }
@@ -166,7 +226,7 @@ public class Query3 {
 
                         Long localTime = System.currentTimeMillis();
                         if(max_tuple != null){
-                            String res = "\n"+timeWindow.getStart();
+                            String res = "\n"+context.window().getStart();
 
                             res += ","+ (localTime - max_tuple.f2);
                             //System.out.print(res);

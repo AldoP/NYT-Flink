@@ -3,14 +3,21 @@ package myflink.Metriche;
 import myflink.Constants;
 import myflink.entity.CommentLog;
 import myflink.utils.CommentLogSchema;
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.common.functions.RichReduceFunction;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.FileSystem;
+import org.apache.flink.dropwizard.metrics.DropwizardMeterWrapper;
+import org.apache.flink.metrics.Meter;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
 import org.apache.flink.streaming.api.windowing.time.Time;
@@ -40,16 +47,39 @@ public class Query1 {
                         return logIntegerTuple2.f0.getCreateDate();
                     }
                 })
-                .map(myTuple2 -> new Tuple3<>(myTuple2.f0, myTuple2.f1, System.currentTimeMillis()))
-                .returns(Types.TUPLE(Types.POJO(CommentLog.class), Types.INT, Types.LONG));
+                //ADD METRICS DATA [TS INGRESSO]
+                .map(new RichMapFunction<Tuple2<CommentLog, Integer>, Tuple3<CommentLog, Integer, Long>>() {
+
+                    private transient Meter meter;
+
+                    @Override
+                    public void open(Configuration parameters) throws Exception {
+                        com.codahale.metrics.Meter dropwizard = new com.codahale.metrics.Meter();
+                        this.meter = getRuntimeContext().getMetricGroup().addGroup("Query1").meter("throughput_in", new DropwizardMeterWrapper(dropwizard));
+                    }
+
+
+
+                    @Override
+                    public Tuple3<CommentLog, Integer, Long> map(Tuple2<CommentLog, Integer> myTuple) throws Exception {
+                        this.meter.markEvent();
+                        return new Tuple3<>(myTuple.f0, myTuple.f1, System.currentTimeMillis());
+                    }
+
+
+                });
 
         // calcola quanto un articolo e' popolare con finestra sliding
         DataStream<String> classifica = timestampedAndWatermarked
                 .keyBy(value -> value.f0.articleID)
                 .timeWindow(Time.hours(WINDOW_SIZE))
                 .reduce(new ReduceFunction<Tuple3<CommentLog, Integer, Long>>() {
+
+
+
                     @Override
                     public Tuple3<CommentLog, Integer, Long> reduce(Tuple3<CommentLog, Integer, Long> t1, Tuple3<CommentLog, Integer, Long> t2) throws Exception {
+
                         Long timestampMin = t1.f2;
 
                         if(t2.f2 > timestampMin){ timestampMin = t2.f2;}
@@ -60,12 +90,26 @@ public class Query1 {
                 })
                 .timeWindowAll(Time.hours(WINDOW_SIZE))
                 .process(new ProcessAllWindowFunction<Tuple3<CommentLog, Integer, Long>, String, TimeWindow>() {
+
+
+                    private transient Meter meter;
+
+                    @Override
+                    public void open(Configuration parameters) throws Exception {
+                        com.codahale.metrics.Meter dropwizard = new com.codahale.metrics.Meter();
+                        this.meter = getRuntimeContext().getMetricGroup().addGroup("Query1").meter("throughput_window_out", new DropwizardMeterWrapper(dropwizard));
+                    }
+
                     @Override
                     public void process(Context context, Iterable<Tuple3<CommentLog, Integer, Long>> iterable, Collector<String> collector) throws Exception {
+
 
                         Tuple3<Integer, CommentLog, Long> max_tuple = null;
                         boolean first = true;
                         for (Tuple3<CommentLog, Integer, Long> my_tuple : iterable) {
+
+                            this.meter.markEvent();
+
                             if (first) {
                                 max_tuple = new Tuple3<Integer, CommentLog, Long>(my_tuple.f1, my_tuple.f0, my_tuple.f2);
                             }
