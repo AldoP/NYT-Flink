@@ -16,8 +16,8 @@ import java.util.*;
 
 public class Query1 {
 
-    private static final int WINDOW_SIZE = 1;       // hours
-    //private static final int WINDOW_SIZE = 24;      // hours
+    //private static final int WINDOW_SIZE = 1;       // hours
+    private static final int WINDOW_SIZE = 24;      // hours
     //private static final int WINDOW_SIZE = 24 * 7;  // hours
 
     public static void run(DataStream<CommentLog> stream) throws Exception {

@@ -21,15 +21,15 @@ public class StreamingJob {
 
         // Get the input data
         Properties properties = new Properties();
-        //properties.setProperty("bootstrap.servers", "broker:29092");
-        properties.setProperty("bootstrap.servers", "localhost:9092");
+        properties.setProperty("bootstrap.servers", "broker:29092");
+        //properties.setProperty("bootstrap.servers", "localhost:9092");
         properties.setProperty("group.id", "flink");
         DataStream<CommentLog> stream = env.addSource(
                 new FlinkKafkaConsumer<>("flink", new CommentLogSchema(), properties));
 
         Query1.run(stream);
         Query2.run(stream);
-        Query3.run(stream);
+        //Query3.run(stream);
 
         env.execute();
     }

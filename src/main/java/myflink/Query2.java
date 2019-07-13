@@ -17,8 +17,8 @@ import java.util.*;
 
 public class Query2 {
 
-    private final static int WINDOW_SIZE = 1;
-    //private final static int WINDOW_SIZE = 7;
+    //private final static int WINDOW_SIZE = 1;
+    private final static int WINDOW_SIZE = 7;
     //private final static int WINDOW_SIZE = 30;
 
     public static void run(DataStream<CommentLog> stream) throws Exception{

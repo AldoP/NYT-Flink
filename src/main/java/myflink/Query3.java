@@ -4,51 +4,42 @@ import myflink.entity.CommentLog;
 import myflink.query3.Level2RedisMapper;
 import myflink.query3.Level3RedisMapper;
 import myflink.query3.MyRedisMapper;
-import myflink.utils.CommentLogSchema;
 import myflink.utils.JedisPoolHolder;
-import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.core.fs.FileSystem;
-import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
-import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 import org.apache.flink.streaming.connectors.redis.RedisSink;
 import org.apache.flink.streaming.connectors.redis.common.config.FlinkJedisPoolConfig;
 import org.apache.flink.util.Collector;
-import redis.clients.jedis.Jedis;
 
 import java.util.*;
 
-/*
-        TODO: sparapatate troppo lento
 
- */
 public class Query3 {
+
+    //private final static int WINDOW_SIZE = 24;      //hours
+    private final static int WINDOW_SIZE = 24 * 7;  //hours
+    //private final static int WINDOW_SIZE = 24 * 30; //hours
 
     public static void run(DataStream<CommentLog> stream) throws Exception {
 
-        final int WINDOW_SIZE = 24*30; //in numero di ore
         boolean docker = false;
 
-
-        if(docker) {JedisPoolHolder.init("redis", 6379);}
+        if (docker) {JedisPoolHolder.init("redis", 6379);}
         else{ JedisPoolHolder.init("localhost", 6379); }
 
         JedisPoolHolder.init("localhost", 6379);
 
-
         FlinkJedisPoolConfig conf;
 
-        if(docker){ conf = new FlinkJedisPoolConfig.Builder().setHost("redis").setPort(6379).build(); }
+        if (docker){ conf = new FlinkJedisPoolConfig.Builder().setHost("redis").setPort(6379).build(); }
         else {      conf = new FlinkJedisPoolConfig.Builder() .setHost("localhost").setPort(6379).build();}
-
 
 
         // Assegna timestamp e watermark
@@ -61,7 +52,7 @@ public class Query3 {
                 });
 
         /*
-         ********* Numero di Like **********
+            ********* Numero di Like **********
          */
         DataStream<Tuple2<String, Double>> rankLike = timestampedAndWatermarked
                 .filter(log -> log.getDepth() == 1) // filtro i soli commenti diretti
@@ -75,7 +66,7 @@ public class Query3 {
 
         /*
 
-         ********** Numero di commenti di risposta **********
+               ********** Numero di commenti di risposta **********
          */
 
         // ******** Salvo i dati in Redis (commenti livello 1 e 2) ********
@@ -121,13 +112,12 @@ public class Query3 {
                 .sum(1)
                 .timeWindowAll(Time.hours(WINDOW_SIZE))
                 .apply(new AllWindowFunction<Tuple2<String, Double>, String, TimeWindow>() {
-
                     @Override
                     public void apply(TimeWindow timeWindow, Iterable<Tuple2<String, Double>> iterable,
                                       Collector<String> collector) throws Exception {
 
                         List<Tuple2<String, Double>> tuple2s = new ArrayList<Tuple2<String, Double>>();
-                        String res = "";
+                        //String res = "";
                         for (Tuple2<String, Double> my_tuple : iterable) {
                             tuple2s.add(new Tuple2<String, Double>(my_tuple.f0, my_tuple.f1));
                         }
@@ -141,37 +131,27 @@ public class Query3 {
                             }
                         });
 
-
-                        // Date date_start = new Date(timeWindow.getStart());
-                        res += " " + timeWindow.getStart()+" ,";
+                        //Date date_start = new Date(timeWindow.getStart());
+                        //res += " " + date_start;
+                        StringBuilder res = new StringBuilder(Long.toString(timeWindow.getStart() / 1000));
                         int size = tuple2s.size();
                         for (int i = 0; i < 10 && i < size; i++) {
-                            res += " " +tuple2s.get(i).f0+" ,";
-                            res += " " + String.format("%.2f", tuple2s.get(i).f1)+" ,";
+                            res.append(", ").append(tuple2s.get(i).f0);
+                            res.append(", ").append(String.format("%.2f", tuple2s.get(i).f1));
                         }
 
-                        res = res.substring(0, res.length() - 1);
-
-                        collector.collect(res);
-
-                        //TODO da rimuovere la stampa
-                        System.out.println(res);
-
+                        collector.collect(res.toString());
                     }
                 });
 
-
-
-        classificaFinale
-                .writeAsText(String.format(Constants.BASE_PATH + "query3_%d.out", WINDOW_SIZE),
-                FileSystem.WriteMode.OVERWRITE).setParallelism(1);
+        classificaFinale.writeAsText(String.format(Constants.BASE_PATH + "query3_%d.out", WINDOW_SIZE),
+                        FileSystem.WriteMode.OVERWRITE).setParallelism(1);
     }
 
     private static Double computeNumLike(Integer num, Boolean isSelected){
         double w = 1;
         if(isSelected) w = 1.1;
         return  num * w * 0.3;
-
     }
 
 }
