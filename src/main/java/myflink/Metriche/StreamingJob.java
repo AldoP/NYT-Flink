@@ -27,9 +27,9 @@ public class StreamingJob {
         DataStream<CommentLog> stream = env.addSource(
                 new FlinkKafkaConsumer<>("flink", new CommentLogSchema(), properties));
 
-        //Query1.run(stream);
+        Query1.run(stream);
         //Query2.run(stream);
-        Query3.run(stream);
+        //Query3.run(stream);
 
         env.execute();
     }
