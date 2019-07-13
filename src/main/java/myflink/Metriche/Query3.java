@@ -25,10 +25,7 @@ import org.apache.flink.util.Collector;
 
 import java.util.*;
 
-/*
-        TODO: sparapatate troppo lento
 
- */
 public class Query3 {
 
     public static void run(DataStream<CommentLog> commentLog) throws Exception {
@@ -54,7 +51,7 @@ public class Query3 {
                 .returns(Types.TUPLE(Types.POJO(CommentLog.class), Types.LONG));
 
         /*
-            ********* Numero di Like **********
+         ********* Numero di Like **********
          */
         DataStream<Tuple3<String, Double, Long>> rankLike = timestampedAndWatermarked
                 .filter(log -> log.f0.getDepth() == 1) // filtro i soli commenti diretti
@@ -80,8 +77,7 @@ public class Query3 {
 
 
         /*
-
-               ********** Numero di commenti di risposta **********
+         ********** Numero di commenti di risposta **********
          */
 
         // ******** Salvo i dati in Redis (commenti livello 1 e 2) ********
@@ -187,7 +183,7 @@ public class Query3 {
                 .setParallelism(1);
 
 
-        
+
     }
 
     private static Double computeNumLike(Integer num, Boolean isSelected){

@@ -24,12 +24,12 @@ import java.util.*;
 public class Query3 {
 
     //private final static int WINDOW_SIZE = 24;      //hours
-    private final static int WINDOW_SIZE = 24 * 7;  //hours
-    //private final static int WINDOW_SIZE = 24 * 30; //hours
+    //private final static int WINDOW_SIZE = 24 * 7;  //hours
+    private final static int WINDOW_SIZE = 24 * 30; //hours
 
     public static void run(DataStream<CommentLog> stream) throws Exception {
 
-        boolean docker = false;
+        boolean docker = true;
 
         if (docker) {JedisPoolHolder.init("redis", 6379);}
         else{ JedisPoolHolder.init("localhost", 6379); }
