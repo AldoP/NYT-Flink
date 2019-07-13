@@ -5,9 +5,11 @@ import myflink.entity.CommentLog;
 import myflink.utils.CommentLogSchema;
 import org.apache.flink.api.common.functions.AggregateFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
@@ -21,6 +23,7 @@ import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFuncti
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
+import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer;
 import org.apache.flink.util.Collector;
 
 import java.time.LocalDateTime;
@@ -41,8 +44,12 @@ public class Query2 {
 
     public static void run(DataStream<CommentLog> stream) throws Exception{
 
+        Properties properties = new Properties();
+        //properties.setProperty("bootstrap.servers", "broker:29092");
+        properties.setProperty("bootstrap.servers", "localhost:9092");
+        properties.setProperty("group.id", "flink");
 
-        DataStream<Tuple2<CommentLog, Long>> timestampedAndWatermarked = stream
+        DataStream<Tuple3<CommentLog, Long, String>> timestampedAndWatermarkedT = stream
                 .filter(CommentLog::isDirect)
                 .assignTimestampsAndWatermarks(new AscendingTimestampExtractor<CommentLog>() {
                     @Override
@@ -50,7 +57,7 @@ public class Query2 {
                         return cl.getCreateDate();
                     }
                 })
-                .map(new RichMapFunction<CommentLog, Tuple2<CommentLog, Long>>() {
+                .map(new RichMapFunction<CommentLog, Tuple3<CommentLog, Long, String>>() {
 
                     private transient Meter meter;
 
@@ -63,23 +70,37 @@ public class Query2 {
 
 
                     @Override
-                    public Tuple2<CommentLog, Long> map(CommentLog myCommentLog) throws Exception {
+                    public Tuple3<CommentLog, Long, String> map(CommentLog myCommentLog) throws Exception {
                         this.meter.markEvent();
-                        return new Tuple2<>(myCommentLog, System.currentTimeMillis());
+                        String res = "\n Query_2_throughput_in , " + System.currentTimeMillis() + " , " + meter.getCount() + " , " + meter.getRate();
+
+                        return new Tuple3<>(myCommentLog, System.currentTimeMillis(), res);
                     }
 
 
                 });
                 //.map(myCommentLog -> new Tuple2<>(myCommentLog, System.currentTimeMillis()))
                 //.returns(Types.TUPLE(Types.POJO(CommentLog.class), Types.LONG));
+        timestampedAndWatermarkedT
+                .map(myTuple-> myTuple.f2).returns(Types.STRING)
+                .addSink(new FlinkKafkaProducer<String>("metricheq2", new SimpleStringSchema(), properties));
 
 
-        DataStream<Tuple3<Integer, Long, Long>> hourlySum = timestampedAndWatermarked
+        DataStream<Tuple4<Integer, Long, Long, String>> hourlySumT = timestampedAndWatermarkedT
+                .map(myTuple -> new Tuple2<>(myTuple.f0, myTuple.f1))
+                .returns(Types.TUPLE(Types.POJO(CommentLog.class), Types.LONG))
+
                 .keyBy(myTuple -> myTuple.f0.getArticleID())
                 .timeWindow(Time.minutes(120))
                 .aggregate(new SumAggregator())
                 .timeWindowAll(Time.minutes(120))
                 .process(new InfoProcessAllWindowFunction());
+
+        hourlySumT.map(myTuple-> myTuple.f3).returns(Types.STRING)
+                .addSink(new FlinkKafkaProducer<String>("metricheq2", new SimpleStringSchema(), properties));
+
+        DataStream<Tuple3<Integer, Long, Long>> hourlySum = hourlySumT.map(myTuple -> new Tuple3<>(myTuple.f0, myTuple.f1, myTuple.f2))
+                .returns(Types.TUPLE(Types.INT, Types.LONG, Types.LONG));
 
         DataStream<String> totalSum = hourlySum
                 .keyBy(0)
@@ -90,6 +111,9 @@ public class Query2 {
 
         hourlySum.print();
         totalSum.print();
+
+        totalSum.addSink(new FlinkKafkaProducer<String>("metricheq2", new SimpleStringSchema(), properties));
+
         totalSum.writeAsText(Query2.WINDOW_SIZE + Query2.PATHOUT_METRIC, FileSystem.WriteMode.OVERWRITE)
                 .setParallelism(1);
 
@@ -137,7 +161,7 @@ public class Query2 {
 
     // Terzo parametro TS
     private static class InfoProcessAllWindowFunction
-            extends ProcessAllWindowFunction<Tuple2<Long, Long>, Tuple3<Integer, Long, Long>, TimeWindow>{
+            extends ProcessAllWindowFunction<Tuple2<Long, Long>, Tuple4<Integer, Long, Long, String>, TimeWindow>{
                     //ProcessAllWindowFunction<Long, Tuple2<Integer, Long>, TimeWindow> {
 
         private transient Meter meter;
@@ -152,13 +176,18 @@ public class Query2 {
 
 
         @Override
-        public void process(Context context, Iterable<Tuple2<Long, Long>> partialCounts, Collector<Tuple3<Integer, Long, Long>> out){
+        public void process(Context context, Iterable<Tuple2<Long, Long>> partialCounts, Collector<Tuple4<Integer, Long, Long, String>> out){
         //public void process(Context context, Iterable<Long> partialCounts, Collector<Tuple2<Integer, Long>> out) {
             Long count = 0L;
             Long ts = 0L;
-
+            String res="";
             for (Tuple2<Long, Long> partialCount : partialCounts){
+
                 this.meter.markEvent();
+
+                res += "\n throughput_out_finestra_interna , " + System.currentTimeMillis() + " , " + meter.getCount() + " , " + meter.getRate();
+
+
                 count += partialCount.f0;
                 if(partialCount.f1 > ts){
                     ts = partialCount.f1;
@@ -167,7 +196,7 @@ public class Query2 {
 
             LocalDateTime startDate = LocalDateTime.ofEpochSecond(
                     context.window().getStart() / 1000, 0, ZoneOffset.UTC);
-            out.collect(new Tuple3<>(startDate.getHour(), count, ts));
+            out.collect(new Tuple4<>(startDate.getHour(), count, ts, res));
         }
     }
 
@@ -191,8 +220,11 @@ public class Query2 {
 
             Tuple3<Integer, Long, Long> max_tuple = null;
             boolean first = true;
+            String res2= "";
             for (Tuple3<Integer, Long, Long> my_tuple : iterable) {
                 this.meter.markEvent();
+                res2 += "\n Query2_throughput_out_finestra_finale , "+System.currentTimeMillis()+" , " +meter.getCount()+" , "+meter.getRate();
+
                 if (first) {
                     max_tuple = new Tuple3<Integer, Long, Long>(my_tuple.f0, my_tuple.f1, my_tuple.f2);
                 }
@@ -209,6 +241,7 @@ public class Query2 {
 
             //System.out.print(res);
             collector.collect(res);
+            collector.collect(res2);
 
         }
     }
