@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   annotations:
     kompose.cmd: /home/simone/Desktop/kompose/kompose convert
+    kompose.service.expose: broker.nyt.com
     kompose.service.type: LoadBalancer
     kompose.version: 1.16.0 (0c01309)
   creationTimestamp: null
@@ -21,7 +22,7 @@ spec:
       containers:
       - env:
         - name: KAFKA_ADVERTISED_LISTENERS
-          value: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
+          value: PLAINTEXT://broker:29092,PLAINTEXT_HOST://broker.nyt.com:9092
         - name: KAFKA_BROKER_ID
           value: "1"
         - name: KAFKA_CREATE_TOPICS

@@ -3,6 +3,7 @@ kind: Service
 metadata:
   annotations:
     kompose.cmd: /home/simone/Desktop/kompose/kompose convert
+    kompose.service.expose: broker.nyt.com
     kompose.service.type: LoadBalancer
     kompose.version: 1.16.0 (0c01309)
   creationTimestamp: null

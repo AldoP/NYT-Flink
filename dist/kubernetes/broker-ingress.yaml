@@ -1,0 +1,17 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: broker
+  name: broker
+spec:
+  rules:
+  - host: broker.nyt.com
+    http:
+      paths:
+      - backend:
+          serviceName: broker
+          servicePort: 9092
+status:
+  loadBalancer: {}
